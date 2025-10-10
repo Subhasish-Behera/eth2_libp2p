@@ -279,6 +279,9 @@ impl GossipTopic {
                 BLS_TO_EXECUTION_CHANGE_TOPIC => GossipKind::BlsToExecutionChange,
                 LIGHT_CLIENT_FINALITY_UPDATE => GossipKind::LightClientFinalityUpdate,
                 LIGHT_CLIENT_OPTIMISTIC_UPDATE => GossipKind::LightClientOptimisticUpdate,
+                EXECUTION_PAYLOAD_TOPIC => GossipKind::ExecutionPayload,
+                PAYLOAD_ATTESTATION_MESSAGE_TOPIC => GossipKind::PayloadAttestationMessage,
+                EXECUTION_PAYLOAD_BID_TOPIC => GossipKind::ExecutionPayloadBid,
                 topic => match subnet_topic_index(topic) {
                     Some(kind) => kind,
                     None => return Err(format!("Unknown topic: {}", topic)),
