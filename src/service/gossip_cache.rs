@@ -48,6 +48,8 @@ pub struct GossipCache {
     execution_payload: Option<Duration>,
     /// Timeout for payload attestation messages.
     payload_attestation_message: Option<Duration>,
+    /// Timeout for execution payload bids.
+    execution_payload_bid: Option<Duration>,
 }
 
 #[derive(Default)]
@@ -83,6 +85,8 @@ pub struct GossipCacheBuilder {
     execution_payload: Option<Duration>,
     /// Timeout for payload attestation messages.
     payload_attestation_message: Option<Duration>,
+    /// Timeout for execution payload bids.
+    execution_payload_bid: Option<Duration>,
 }
 
 #[allow(dead_code)]
@@ -177,6 +181,7 @@ impl GossipCacheBuilder {
             light_client_optimistic_update,
             execution_payload,
             payload_attestation_message,
+            execution_payload_bid,
         } = self;
         GossipCache {
             expirations: DelayQueue::default(),
@@ -196,6 +201,7 @@ impl GossipCacheBuilder {
             light_client_optimistic_update: light_client_optimistic_update.or(default_timeout),
             execution_payload: execution_payload.or(default_timeout),
             payload_attestation_message: payload_attestation_message.or(default_timeout),
+            execution_payload_bid: execution_payload_bid.or(default_timeout),
         }
     }
 }
@@ -225,6 +231,7 @@ impl GossipCache {
             GossipKind::LightClientOptimisticUpdate => self.light_client_optimistic_update,
             GossipKind::ExecutionPayload => self.execution_payload,
             GossipKind::PayloadAttestationMessage => self.payload_attestation_message,
+            GossipKind::ExecutionPayloadBid => self.execution_payload_bid,
         };
         let Some(expire_timeout) = expire_timeout else {
             return;

@@ -36,6 +36,7 @@ pub const LIGHT_CLIENT_FINALITY_UPDATE: &str = "light_client_finality_update";
 pub const LIGHT_CLIENT_OPTIMISTIC_UPDATE: &str = "light_client_optimistic_update";
 pub const EXECUTION_PAYLOAD_TOPIC: &str = "execution_payload";
 pub const PAYLOAD_ATTESTATION_MESSAGE_TOPIC: &str = "payload_attestation_message";
+pub const EXECUTION_PAYLOAD_BID_TOPIC: &str = "execution_payload_bid";
 
 #[derive(Debug)]
 pub struct TopicConfig {
@@ -129,7 +130,8 @@ pub fn is_fork_non_core_topic(topic: &GossipTopic, _phase: Phase) -> bool {
         | GossipKind::LightClientFinalityUpdate
         | GossipKind::LightClientOptimisticUpdate
         | GossipKind::ExecutionPayload
-        | GossipKind::PayloadAttestationMessage => false,
+        | GossipKind::PayloadAttestationMessage
+        | GossipKind::ExecutionPayloadBid => false,
     }
 }
 
@@ -194,6 +196,8 @@ pub enum GossipKind {
     ExecutionPayload,
     /// Topic for publishing payload attestation messages.
     PayloadAttestationMessage,
+    /// Topic for publishing execution payload bids.
+    ExecutionPayloadBid,
 }
 
 impl std::fmt::Display for GossipKind {
@@ -344,6 +348,7 @@ impl std::fmt::Display for GossipTopic {
             GossipKind::LightClientOptimisticUpdate => LIGHT_CLIENT_OPTIMISTIC_UPDATE.into(),
             GossipKind::ExecutionPayload => EXECUTION_PAYLOAD_TOPIC.into(),
             GossipKind::PayloadAttestationMessage => PAYLOAD_ATTESTATION_MESSAGE_TOPIC.into(),
+            GossipKind::ExecutionPayloadBid => EXECUTION_PAYLOAD_BID_TOPIC.into(),
         };
         write!(
             f,
