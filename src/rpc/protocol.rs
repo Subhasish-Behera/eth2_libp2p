@@ -60,21 +60,10 @@ pub static DATA_COLUMN_MAX: LazyLock<usize> = LazyLock::new(|| {
         .len()
 });
 
-pub static SIGNED_EXECUTION_PAYLOAD_ENVELOPE_MIN: LazyLock<usize> = LazyLock::new(|| {
-    let empty_payload = ExecutionPayloadEnvelope::<Mainnet>::default();
-    let signed = SignedExecutionPayloadEnvelope::<Mainnet> {
-        message: empty_payload,
-        signature: Default::default(),
-    };
-    signed
-        .to_ssz()
-        .expect("default SignedExecutionPayloadEnvelope unavailable in SSZ")
-        .len()
-});
-
-pub static SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MAX: LazyLock<usize> = LazyLock::new(|| {
-    SIGNED_BEACON_BLOCK_BELLATRIX_MAX
-});
+// ExecutionPayloadEnvelopes follow the same pattern as BeaconBlocks:
+// sizes are fork-dependent (not preset-dependent), so we use const instead of LazyLock.
+pub const SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MIN: usize = SIGNED_BEACON_BLOCK_PHASE0_MIN;
+pub const SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MAX: usize = SIGNED_BEACON_BLOCK_BELLATRIX_MAX;
 
 
 pub const ERROR_TYPE_MIN: usize = 0;
@@ -184,8 +173,8 @@ fn rpc_execution_payload_envelope_limits_by_fork(current_fork: Phase) -> RpcLimi
             RpcLimits::new(0, 0)
         }
         Phase::Gloas => RpcLimits::new(
-            *SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MIN,
-            *SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MAX,
+            SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MIN,
+            SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MAX,
         ),
     }
 }
