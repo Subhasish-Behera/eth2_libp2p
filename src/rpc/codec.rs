@@ -94,6 +94,8 @@ impl<P: Preset> SSZSnappyInboundCodec<P> {
                 RpcSuccessResponse::BlobsByRoot(res) => res.to_ssz()?,
                 RpcSuccessResponse::DataColumnsByRoot(res) => res.to_ssz()?,
                 RpcSuccessResponse::DataColumnsByRange(res) => res.to_ssz()?,
+                RpcSuccessResponse::ExecutionPayloadEnvelopesByRoot(res) => res.to_ssz()?,
+                RpcSuccessResponse::ExecutionPayloadEnvelopesByRange(res) => res.to_ssz()?,
                 RpcSuccessResponse::LightClientBootstrap(res) => res.to_ssz()?,
                 RpcSuccessResponse::LightClientOptimisticUpdate(res) => res.to_ssz()?,
                 RpcSuccessResponse::LightClientFinalityUpdate(res) => res.to_ssz()?,
@@ -393,6 +395,8 @@ impl<P: Preset> Encoder<RequestType<P>> for SSZSnappyOutboundCodec<P> {
             RequestType::BlobsByRoot(req) => req.blob_ids.to_ssz()?,
             RequestType::DataColumnsByRange(req) => req.to_ssz()?,
             RequestType::DataColumnsByRoot(req) => req.data_column_ids.to_ssz()?,
+            RequestType::ExecutionPayloadEnvelopesByRange(req) => req.to_ssz()?,
+            RequestType::ExecutionPayloadEnvelopesByRoot(req) => req.block_roots.to_ssz()?,
             RequestType::Ping(req) => req.to_ssz()?,
             RequestType::LightClientBootstrap(req) => req.to_ssz()?,
             RequestType::LightClientUpdatesByRange(req) => req.to_ssz()?,
@@ -624,6 +628,19 @@ fn handle_rpc_request<P: Preset>(
                 )?,
             },
         ))),
+        SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1 => Ok(Some(
+            RequestType::ExecutionPayloadEnvelopesByRange(
+                ExecutionPayloadEnvelopesByRangeRequest::from_ssz_default(decoded_buffer)?,
+            ),
+        )),
+        SupportedProtocol::ExecutionPayloadEnvelopesByRootV1 => Ok(Some(
+            RequestType::ExecutionPayloadEnvelopesByRoot(ExecutionPayloadEnvelopesByRootRequest {
+                block_roots: DynamicList::from_ssz(
+                    &(config.max_request_blocks(current_phase) as usize),
+                    decoded_buffer,
+                )?,
+            }),
+        )),
         SupportedProtocol::PingV1 => Ok(Some(RequestType::Ping(Ping {
             data: u64::from_ssz_default(decoded_buffer)?,
         }))),
@@ -789,6 +806,54 @@ fn handle_rpc_response<P: Preset>(
                 ),
             )),
         },
+        SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1 => match fork_name {
+    Some(Phase::Gloas) => Ok(Some(RpcSuccessResponse::ExecutionPayloadEnvelopesByRange(
+        Arc::new(SignedExecutionPayloadEnvelope::from_ssz_default(decoded_buffer)?),
+    ))),
+    Some(
+        Phase::Phase0
+        | Phase::Altair
+        | Phase::Bellatrix
+        | Phase::Capella
+        | Phase::Deneb
+        | Phase::Electra
+        | Phase::Fulu,
+    ) => Err(RPCError::ErrorResponse(
+        RpcErrorResponse::InvalidRequest,
+        "Invalid fork name for execution payload envelopes by range".to_string(),
+    )),
+    None => Err(RPCError::ErrorResponse(
+        RpcErrorResponse::InvalidRequest,
+        format!(
+            "No context bytes provided for {:?} response",
+            versioned_protocol
+        ),
+    )),
+},
+SupportedProtocol::ExecutionPayloadEnvelopesByRootV1 => match fork_name {
+    Some(Phase::Gloas) => Ok(Some(RpcSuccessResponse::ExecutionPayloadEnvelopesByRoot(
+        Arc::new(SignedExecutionPayloadEnvelope::from_ssz_default(decoded_buffer)?),
+    ))),
+    Some(
+        Phase::Phase0
+        | Phase::Altair
+        | Phase::Bellatrix
+        | Phase::Capella
+        | Phase::Deneb
+        | Phase::Electra
+        | Phase::Fulu,
+    ) => Err(RPCError::ErrorResponse(
+        RpcErrorResponse::InvalidRequest,
+        "Invalid fork name for execution payload envelopes by root".to_string(),
+    )),
+    None => Err(RPCError::ErrorResponse(
+        RpcErrorResponse::InvalidRequest,
+        format!(
+            "No context bytes provided for {:?} response",
+            versioned_protocol
+        ),
+    )),
+},
         SupportedProtocol::PingV1 => Ok(Some(RpcSuccessResponse::Pong(Ping {
             data: u64::from_ssz_default(decoded_buffer)?,
         }))),

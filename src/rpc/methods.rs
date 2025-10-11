@@ -26,6 +26,7 @@ use types::{
         containers::{DataColumnSidecar, DataColumnsByRootIdentifier},
         primitives::ColumnIndex,
     },
+    gloas::containers::{ExecutionPayloadEnvelope, SignedExecutionPayloadEnvelope},
     phase0::primitives::{Epoch, ForkDigest, Slot, H256},
     preset::Preset,
     traits::SignedBeaconBlock as _,
@@ -796,6 +797,36 @@ impl<P: Preset> DataColumnsByRootRequest<P> {
     }
 }
 
+/// Request a number of execution payload envelopes from a peer.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Ssz)]
+#[ssz(derive_hash = false)]
+pub struct ExecutionPayloadEnvelopesByRangeRequest {
+    /// The starting slot to request execution payload envelopes.
+    pub start_slot: Slot,
+    /// The number of slots from the start slot.
+    pub count: u64,
+}
+
+impl ExecutionPayloadEnvelopesByRangeRequest {
+    pub fn new(start_slot: Slot, count: u64) -> Self {
+        Self { start_slot, count }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExecutionPayloadEnvelopesByRootRequest<P: Preset> {
+    /// The list of beacon block roots being requested.
+    pub block_roots: DynamicList<H256, P::MaxRequestPayloads>,
+}
+
+impl<P: Preset> ExecutionPayloadEnvelopesByRootRequest<P> {
+    pub fn new(block_roots: Vec<H256>) -> Result<Self> {
+        let block_roots = DynamicList::try_from_iter(block_roots).map_err(|_| {
+            anyhow::anyhow!("Too many roots for ExecutionPayloadEnvelopesByRootRequest")
+        })?;
+        Ok(Self { block_roots })
+    }
+}
 /// Request a number of beacon data columns from a peer.
 #[derive(Clone, Debug, PartialEq, Ssz)]
 pub struct LightClientUpdatesByRangeRequest {
@@ -878,6 +909,12 @@ pub enum ResponseTermination {
     /// Data column sidecars by range stream termination.
     DataColumnsByRange,
 
+    /// Execution payload envelopes by range stream termination.
+    ExecutionPayloadEnvelopesByRange,
+
+    /// Execution payload envelopes by root stream termination.
+    ExecutionPayloadEnvelopesByRoot,
+    
     /// Light client updates by range stream termination.
     LightClientUpdatesByRange,
 }
@@ -891,6 +928,8 @@ impl ResponseTermination {
             ResponseTermination::BlobsByRoot => Protocol::BlobsByRoot,
             ResponseTermination::DataColumnsByRoot => Protocol::DataColumnsByRoot,
             ResponseTermination::DataColumnsByRange => Protocol::DataColumnsByRange,
+            ResponseTermination::ExecutionPayloadEnvelopesByRange => Protocol::ExecutionPayloadEnvelopesByRange,
+            ResponseTermination::ExecutionPayloadEnvelopesByRoot => Protocol::ExecutionPayloadEnvelopesByRoot,
             ResponseTermination::LightClientUpdatesByRange => Protocol::LightClientUpdatesByRange,
         }
     }
@@ -986,6 +1025,8 @@ impl<P: Preset> RpcSuccessResponse<P> {
             RpcSuccessResponse::BlobsByRoot(_) => Protocol::BlobsByRoot,
             RpcSuccessResponse::DataColumnsByRoot(_) => Protocol::DataColumnsByRoot,
             RpcSuccessResponse::DataColumnsByRange(_) => Protocol::DataColumnsByRange,
+            RpcSuccessResponse::ExecutionPayloadEnvelopesByRange(_) => Protocol::ExecutionPayloadEnvelopesByRange,
+            RpcSuccessResponse::ExecutionPayloadEnvelopesByRoot(_) => Protocol::ExecutionPayloadEnvelopesByRoot,
             RpcSuccessResponse::Pong(_) => Protocol::Ping,
             RpcSuccessResponse::MetaData(_) => Protocol::MetaData,
             RpcSuccessResponse::LightClientBootstrap(_) => Protocol::LightClientBootstrap,

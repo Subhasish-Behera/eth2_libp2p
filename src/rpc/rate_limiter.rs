@@ -311,6 +311,8 @@ impl RPCRateLimiter {
             blobs_by_root_quota,
             data_columns_by_root_quota,
             data_columns_by_range_quota,
+            execution_payload_envelopes_by_range_quota,
+            execution_payload_envelopes_by_root_quota,
             light_client_bootstrap_quota,
             light_client_optimistic_update_quota,
             light_client_finality_update_quota,
@@ -328,6 +330,8 @@ impl RPCRateLimiter {
             .set_quota(Protocol::BlobsByRoot, blobs_by_root_quota)
             .set_quota(Protocol::DataColumnsByRoot, data_columns_by_root_quota)
             .set_quota(Protocol::DataColumnsByRange, data_columns_by_range_quota)
+            .set_quota(Protocol::ExecutionPayloadEnvelopesByRange, execution_payload_envelopes_by_range_quota)
+            .set_quota(Protocol::ExecutionPayloadEnvelopesByRoot, execution_payload_envelopes_by_root_quota)
             .set_quota(Protocol::LightClientBootstrap, light_client_bootstrap_quota)
             .set_quota(
                 Protocol::LightClientOptimisticUpdate,

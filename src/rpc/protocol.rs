@@ -29,6 +29,7 @@ use types::{
         LightClientOptimisticUpdate as AltairLightClientOptimisticUpdate,
         LightClientUpdate as AltairLightClientUpdate,
     },
+    gloas::containers::{ExecutionPayloadEnvelope, SignedExecutionPayloadEnvelope},
     config::Config as ChainConfig,
     nonstandard::Phase,
     preset::{Mainnet, Preset, PresetName},
@@ -58,6 +59,23 @@ pub static DATA_COLUMN_MAX: LazyLock<usize> = LazyLock::new(|| {
         .expect("full DataColumnSidecar unavailable in SSZ")
         .len()
 });
+
+pub static SIGNED_EXECUTION_PAYLOAD_ENVELOPE_MIN: LazyLock<usize> = LazyLock::new(|| {
+    let empty_payload = ExecutionPayloadEnvelope::<Mainnet>::default();
+    let signed = SignedExecutionPayloadEnvelope::<Mainnet> {
+        message: empty_payload,
+        signature: Default::default(),
+    };
+    signed
+        .to_ssz()
+        .expect("default SignedExecutionPayloadEnvelope unavailable in SSZ")
+        .len()
+});
+
+pub static SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MAX: LazyLock<usize> = LazyLock::new(|| {
+    SIGNED_BEACON_BLOCK_BELLATRIX_MAX
+});
+
 
 pub const ERROR_TYPE_MIN: usize = 0;
 pub const ERROR_TYPE_MAX: usize = 256;
@@ -153,6 +171,25 @@ fn rpc_light_client_bootstrap_limits_by_fork<P: Preset>(current_fork: Phase) -> 
     }
 }
 
+fn rpc_execution_payload_envelope_limits_by_fork(current_fork: Phase) -> RpcLimits {
+    match current_fork {
+        Phase::Phase0
+        | Phase::Altair
+        | Phase::Bellatrix
+        | Phase::Capella
+        | Phase::Deneb
+        | Phase::Electra
+        | Phase::Fulu => {
+            // ExecutionPayloadEnvelopes only available from Gloas onward
+            RpcLimits::new(0, 0)
+        }
+        Phase::Gloas => RpcLimits::new(
+            *SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MIN,
+            *SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MAX,
+        ),
+    }
+}
+
 /// Protocol names to be used.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumString, AsRefStr, Display)]
 #[strum(serialize_all = "snake_case")]
@@ -179,6 +216,12 @@ pub enum Protocol {
     /// The `DataColumnSidecarsByRange` protocol name.
     #[strum(serialize = "data_column_sidecars_by_range")]
     DataColumnsByRange,
+    /// The `ExecutionPayloadEnvelopesByRange` protocol name.
+    #[strum(serialize = "execution_payload_envelopes_by_range")]
+    ExecutionPayloadEnvelopesByRange,
+    /// The `ExecutionPayloadEnvelopesByRoot` protocol name.
+    #[strum(serialize = "execution_payload_envelopes_by_root")]
+    ExecutionPayloadEnvelopesByRoot,
     /// The `Ping` protocol name.
     Ping,
     /// The `MetaData` protocol name.
@@ -209,6 +252,12 @@ impl Protocol {
             Protocol::BlobsByRoot => Some(ResponseTermination::BlobsByRoot),
             Protocol::DataColumnsByRoot => Some(ResponseTermination::DataColumnsByRoot),
             Protocol::DataColumnsByRange => Some(ResponseTermination::DataColumnsByRange),
+            Protocol::ExecutionPayloadEnvelopesByRange => {
+                Some(ResponseTermination::ExecutionPayloadEnvelopesByRange)
+            }
+            Protocol::ExecutionPayloadEnvelopesByRoot => {
+                Some(ResponseTermination::ExecutionPayloadEnvelopesByRoot)
+            }
             Protocol::Ping => None,
             Protocol::MetaData => None,
             Protocol::LightClientBootstrap => None,
@@ -241,6 +290,8 @@ pub enum SupportedProtocol {
     BlobsByRootV1,
     DataColumnsByRootV1,
     DataColumnsByRangeV1,
+    ExecutionPayloadEnvelopesByRangeV1,
+    ExecutionPayloadEnvelopesByRootV1,
     PingV1,
     MetaDataV1,
     MetaDataV2,
@@ -265,6 +316,8 @@ impl SupportedProtocol {
             SupportedProtocol::BlobsByRootV1 => "1",
             SupportedProtocol::DataColumnsByRootV1 => "1",
             SupportedProtocol::DataColumnsByRangeV1 => "1",
+            SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1 => "1",
+            SupportedProtocol::ExecutionPayloadEnvelopesByRootV1 => "1",
             SupportedProtocol::PingV1 => "1",
             SupportedProtocol::MetaDataV1 => "1",
             SupportedProtocol::MetaDataV2 => "2",
@@ -289,6 +342,12 @@ impl SupportedProtocol {
             SupportedProtocol::BlobsByRootV1 => Protocol::BlobsByRoot,
             SupportedProtocol::DataColumnsByRootV1 => Protocol::DataColumnsByRoot,
             SupportedProtocol::DataColumnsByRangeV1 => Protocol::DataColumnsByRange,
+            SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1 => {
+                Protocol::ExecutionPayloadEnvelopesByRange
+            }
+            SupportedProtocol::ExecutionPayloadEnvelopesByRootV1 => {
+                Protocol::ExecutionPayloadEnvelopesByRoot
+            }
             SupportedProtocol::PingV1 => Protocol::Ping,
             SupportedProtocol::MetaDataV1 => Protocol::MetaData,
             SupportedProtocol::MetaDataV2 => Protocol::MetaData,
@@ -337,6 +396,18 @@ impl SupportedProtocol {
             supported.extend_from_slice(&[
                 ProtocolId::new(SupportedProtocol::DataColumnsByRootV1, Encoding::SSZSnappy),
                 ProtocolId::new(SupportedProtocol::DataColumnsByRangeV1, Encoding::SSZSnappy),
+            ]);
+        }
+        if fork_context.fork_exists(Phase::Gloas) {
+            supported.extend_from_slice(&[
+                ProtocolId::new(
+                    SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1,
+                    Encoding::SSZSnappy,
+                ),
+                ProtocolId::new(
+                    SupportedProtocol::ExecutionPayloadEnvelopesByRootV1,
+                    Encoding::SSZSnappy,
+                ),
             ]);
         }
         supported
@@ -463,6 +534,14 @@ impl ProtocolId {
                 DataColumnsByRangeRequest::<P>::ssz_max_len()
                     .expect("Unable to get DataColumnsByRange ssz_max_len"),
             ),
+            Protocol::ExecutionPayloadEnvelopesByRoot => RpcLimits::new(
+                 0,
+                 config.max_request_payloads as usize * H256::SIZE.get(),
+            ),
+            Protocol::ExecutionPayloadEnvelopesByRange => RpcLimits::new(
+                ExecutionPayloadEnvelopesByRangeRequest::SIZE.get(),
+                ExecutionPayloadEnvelopesByRangeRequest::SIZE.get(),
+            ),
             Protocol::Ping => RpcLimits::new(Ping::SIZE.get(), Ping::SIZE.get()),
             Protocol::LightClientBootstrap => RpcLimits::new(
                 LightClientBootstrapRequest::SIZE.get(),
@@ -491,6 +570,12 @@ impl ProtocolId {
             }
             Protocol::DataColumnsByRange => {
                 rpc_data_column_limits::<P>(fork_context.current_fork_name())
+            }
+            Protocol::ExecutionPayloadEnvelopesByRange => {
+                rpc_execution_payload_envelope_limits_by_fork(fork_context.current_fork_name())
+            }
+            Protocol::ExecutionPayloadEnvelopesByRoot => {
+                rpc_execution_payload_envelope_limits_by_fork(fork_context.current_fork_name())
             }
             Protocol::Ping => RpcLimits::new(Ping::SIZE.get(), Ping::SIZE.get()),
             Protocol::MetaData => RpcLimits::new(MetaDataV1::SIZE.get(), MetaDataV3::SIZE.get()),
@@ -525,6 +610,8 @@ impl ProtocolId {
             | SupportedProtocol::BlobsByRootV1
             | SupportedProtocol::DataColumnsByRootV1
             | SupportedProtocol::DataColumnsByRangeV1
+            | SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1
+            | SupportedProtocol::ExecutionPayloadEnvelopesByRootV1
             | SupportedProtocol::LightClientBootstrapV1
             | SupportedProtocol::LightClientOptimisticUpdateV1
             | SupportedProtocol::LightClientFinalityUpdateV1
