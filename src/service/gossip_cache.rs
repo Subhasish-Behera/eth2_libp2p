@@ -163,6 +163,24 @@ impl GossipCacheBuilder {
         self
     }
 
+    /// Timeout for execution payload messages.
+    pub fn execution_payload_timeout(mut self, timeout: Duration) -> Self {
+        self.execution_payload = Some(timeout);
+        self
+    }
+
+    /// Timeout for payload attestation messages.
+    pub fn payload_attestation_message_timeout(mut self, timeout: Duration) -> Self {
+        self.payload_attestation_message = Some(timeout);
+        self
+    }
+
+    /// Timeout for execution payload bid messages.
+    pub fn execution_payload_bid_timeout(mut self, timeout: Duration) -> Self {
+        self.execution_payload_bid = Some(timeout);
+        self
+    }
+
     pub fn build(self) -> GossipCache {
         let GossipCacheBuilder {
             default_timeout,
