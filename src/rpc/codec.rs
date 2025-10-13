@@ -28,7 +28,9 @@ use types::{
     deneb::containers::{BlobSidecar, SignedBeaconBlock as DenebSignedBeaconBlock},
     electra::containers::SignedBeaconBlock as ElectraSignedBeaconBlock,
     fulu::containers::{DataColumnSidecar, SignedBeaconBlock as FuluSignedBeaconBlock},
-    gloas::containers::SignedBeaconBlock as GloasSignedBeaconBlock,
+    gloas::containers::{
+        SignedBeaconBlock as GloasSignedBeaconBlock, SignedExecutionPayloadEnvelope,
+    },
     nonstandard::Phase,
     phase0::{containers::SignedBeaconBlock as Phase0SignedBeaconBlock, primitives::ForkDigest},
     preset::Preset,
@@ -628,11 +630,11 @@ fn handle_rpc_request<P: Preset>(
                 )?,
             },
         ))),
-        SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1 => Ok(Some(
-            RequestType::ExecutionPayloadEnvelopesByRange(
+        SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1 => {
+            Ok(Some(RequestType::ExecutionPayloadEnvelopesByRange(
                 ExecutionPayloadEnvelopesByRangeRequest::from_ssz_default(decoded_buffer)?,
-            ),
-        )),
+            )))
+        }
         SupportedProtocol::ExecutionPayloadEnvelopesByRootV1 => Ok(Some(
             RequestType::ExecutionPayloadEnvelopesByRoot(ExecutionPayloadEnvelopesByRootRequest {
                 block_roots: DynamicList::from_ssz(
@@ -807,53 +809,57 @@ fn handle_rpc_response<P: Preset>(
             )),
         },
         SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1 => match fork_name {
-    Some(Phase::Gloas) => Ok(Some(RpcSuccessResponse::ExecutionPayloadEnvelopesByRange(
-        Arc::new(SignedExecutionPayloadEnvelope::from_ssz_default(decoded_buffer)?),
-    ))),
-    Some(
-        Phase::Phase0
-        | Phase::Altair
-        | Phase::Bellatrix
-        | Phase::Capella
-        | Phase::Deneb
-        | Phase::Electra
-        | Phase::Fulu,
-    ) => Err(RPCError::ErrorResponse(
-        RpcErrorResponse::InvalidRequest,
-        "Invalid fork name for execution payload envelopes by range".to_string(),
-    )),
-    None => Err(RPCError::ErrorResponse(
-        RpcErrorResponse::InvalidRequest,
-        format!(
-            "No context bytes provided for {:?} response",
-            versioned_protocol
-        ),
-    )),
-},
-SupportedProtocol::ExecutionPayloadEnvelopesByRootV1 => match fork_name {
-    Some(Phase::Gloas) => Ok(Some(RpcSuccessResponse::ExecutionPayloadEnvelopesByRoot(
-        Arc::new(SignedExecutionPayloadEnvelope::from_ssz_default(decoded_buffer)?),
-    ))),
-    Some(
-        Phase::Phase0
-        | Phase::Altair
-        | Phase::Bellatrix
-        | Phase::Capella
-        | Phase::Deneb
-        | Phase::Electra
-        | Phase::Fulu,
-    ) => Err(RPCError::ErrorResponse(
-        RpcErrorResponse::InvalidRequest,
-        "Invalid fork name for execution payload envelopes by root".to_string(),
-    )),
-    None => Err(RPCError::ErrorResponse(
-        RpcErrorResponse::InvalidRequest,
-        format!(
-            "No context bytes provided for {:?} response",
-            versioned_protocol
-        ),
-    )),
-},
+            Some(Phase::Gloas) => Ok(Some(RpcSuccessResponse::ExecutionPayloadEnvelopesByRange(
+                Arc::new(SignedExecutionPayloadEnvelope::from_ssz_default(
+                    decoded_buffer,
+                )?),
+            ))),
+            Some(
+                Phase::Phase0
+                | Phase::Altair
+                | Phase::Bellatrix
+                | Phase::Capella
+                | Phase::Deneb
+                | Phase::Electra
+                | Phase::Fulu,
+            ) => Err(RPCError::ErrorResponse(
+                RpcErrorResponse::InvalidRequest,
+                "Invalid fork name for execution payload envelopes by range".to_string(),
+            )),
+            None => Err(RPCError::ErrorResponse(
+                RpcErrorResponse::InvalidRequest,
+                format!(
+                    "No context bytes provided for {:?} response",
+                    versioned_protocol
+                ),
+            )),
+        },
+        SupportedProtocol::ExecutionPayloadEnvelopesByRootV1 => match fork_name {
+            Some(Phase::Gloas) => Ok(Some(RpcSuccessResponse::ExecutionPayloadEnvelopesByRoot(
+                Arc::new(SignedExecutionPayloadEnvelope::from_ssz_default(
+                    decoded_buffer,
+                )?),
+            ))),
+            Some(
+                Phase::Phase0
+                | Phase::Altair
+                | Phase::Bellatrix
+                | Phase::Capella
+                | Phase::Deneb
+                | Phase::Electra
+                | Phase::Fulu,
+            ) => Err(RPCError::ErrorResponse(
+                RpcErrorResponse::InvalidRequest,
+                "Invalid fork name for execution payload envelopes by root".to_string(),
+            )),
+            None => Err(RPCError::ErrorResponse(
+                RpcErrorResponse::InvalidRequest,
+                format!(
+                    "No context bytes provided for {:?} response",
+                    versioned_protocol
+                ),
+            )),
+        },
         SupportedProtocol::PingV1 => Ok(Some(RpcSuccessResponse::Pong(Ping {
             data: u64::from_ssz_default(decoded_buffer)?,
         }))),

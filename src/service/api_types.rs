@@ -44,9 +44,9 @@ pub enum Response<P: Preset> {
     /// A response to a get DATA_COLUMN_SIDECARS_BY_ROOT request.
     DataColumnsByRoot(Option<Arc<DataColumnSidecar<P>>>),
     // A responcse to a get EXECUTION_PAYLOAD_ENVELOPES_BY_RANGE request.
-    ExecutionPayloadEnvelopesByRange(Option<Arc<SignedExecutionPayloadEnvelope>>),
+    ExecutionPayloadEnvelopesByRange(Option<Arc<SignedExecutionPayloadEnvelope<P>>>),
     // A response to a get EXECUTION_PAYLOAD_ENVELOPES_BY_ROOT request.
-    ExecutionPayloadEnvelopesByRoot(Option<Arc<SignedExecutionPayloadEnvelope>>),
+    ExecutionPayloadEnvelopesByRoot(Option<Arc<SignedExecutionPayloadEnvelope<P>>>),
     /// A response to a LightClientUpdate request.
     LightClientBootstrap(Arc<LightClientBootstrap<P>>),
     /// A response to a LightClientOptimisticUpdate request.
@@ -85,12 +85,20 @@ impl<P: Preset> std::convert::From<Response<P>> for RpcResponse<P> {
                 None => RpcResponse::StreamTermination(ResponseTermination::DataColumnsByRange),
             },
             Response::ExecutionPayloadEnvelopesByRoot(r) => match r {
-                Some(e) => RpcResponse::Success(RpcSuccessResponse::ExecutionPayloadEnvelopesByRoot(e)),
-                None => RpcResponse::StreamTermination(ResponseTermination::ExecutionPayloadEnvelopesByRoot),
+                Some(e) => {
+                    RpcResponse::Success(RpcSuccessResponse::ExecutionPayloadEnvelopesByRoot(e))
+                }
+                None => RpcResponse::StreamTermination(
+                    ResponseTermination::ExecutionPayloadEnvelopesByRoot,
+                ),
             },
             Response::ExecutionPayloadEnvelopesByRange(r) => match r {
-                Some(e) => RpcResponse::Success(RpcSuccessResponse::ExecutionPayloadEnvelopesByRange(e)),
-                None => RpcResponse::StreamTermination(ResponseTermination::ExecutionPayloadEnvelopesByRange),
+                Some(e) => {
+                    RpcResponse::Success(RpcSuccessResponse::ExecutionPayloadEnvelopesByRange(e))
+                }
+                None => RpcResponse::StreamTermination(
+                    ResponseTermination::ExecutionPayloadEnvelopesByRange,
+                ),
             },
             Response::Status(s) => RpcResponse::Success(RpcSuccessResponse::Status(s)),
             Response::LightClientBootstrap(b) => {

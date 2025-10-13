@@ -29,7 +29,6 @@ use types::{
         LightClientOptimisticUpdate as AltairLightClientOptimisticUpdate,
         LightClientUpdate as AltairLightClientUpdate,
     },
-    gloas::containers::{ExecutionPayloadEnvelope, SignedExecutionPayloadEnvelope},
     config::Config as ChainConfig,
     nonstandard::Phase,
     preset::{Mainnet, Preset, PresetName},
@@ -64,7 +63,6 @@ pub static DATA_COLUMN_MAX: LazyLock<usize> = LazyLock::new(|| {
 // sizes are fork-dependent (not preset-dependent), so we use const instead of LazyLock.
 pub const SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MIN: usize = SIGNED_BEACON_BLOCK_PHASE0_MIN;
 pub const SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MAX: usize = SIGNED_BEACON_BLOCK_BELLATRIX_MAX;
-
 
 pub const ERROR_TYPE_MIN: usize = 0;
 pub const ERROR_TYPE_MAX: usize = 256;
@@ -524,8 +522,8 @@ impl ProtocolId {
                     .expect("Unable to get DataColumnsByRange ssz_max_len"),
             ),
             Protocol::ExecutionPayloadEnvelopesByRoot => RpcLimits::new(
-                 0,
-                 config.max_request_payloads as usize * H256::SIZE.get(),
+                0,
+                chain_config.max_request_payloads as usize * H256::SIZE.get(),
             ),
             Protocol::ExecutionPayloadEnvelopesByRange => RpcLimits::new(
                 ExecutionPayloadEnvelopesByRangeRequest::SIZE.get(),
@@ -715,6 +713,8 @@ pub enum RequestType<P: Preset> {
     BlobsByRoot(BlobsByRootRequest),
     DataColumnsByRoot(DataColumnsByRootRequest<P>),
     DataColumnsByRange(DataColumnsByRangeRequest<P>),
+    ExecutionPayloadEnvelopesByRange(ExecutionPayloadEnvelopesByRangeRequest),
+    ExecutionPayloadEnvelopesByRoot(ExecutionPayloadEnvelopesByRootRequest),
     LightClientBootstrap(LightClientBootstrapRequest),
     LightClientOptimisticUpdate,
     LightClientFinalityUpdate,
@@ -741,6 +741,8 @@ impl<P: Preset> RequestType<P> {
             RequestType::BlobsByRoot(req) => req.blob_ids.len() as u64,
             RequestType::DataColumnsByRoot(req) => req.max_requested() as u64,
             RequestType::DataColumnsByRange(req) => req.max_requested(),
+            RequestType::ExecutionPayloadEnvelopesByRange(req) => req.max_requested(),
+            RequestType::ExecutionPayloadEnvelopesByRoot(req) => req.max_requested() as u64,
             RequestType::Ping(_) => 1,
             RequestType::MetaData(_) => 1,
             RequestType::LightClientBootstrap(_) => 1,
@@ -770,6 +772,12 @@ impl<P: Preset> RequestType<P> {
             RequestType::BlobsByRoot(_) => SupportedProtocol::BlobsByRootV1,
             RequestType::DataColumnsByRoot(_) => SupportedProtocol::DataColumnsByRootV1,
             RequestType::DataColumnsByRange(_) => SupportedProtocol::DataColumnsByRangeV1,
+            RequestType::ExecutionPayloadEnvelopesByRange(_) => {
+                SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1
+            }
+            RequestType::ExecutionPayloadEnvelopesByRoot(_) => {
+                SupportedProtocol::ExecutionPayloadEnvelopesByRootV1
+            }
             RequestType::Ping(_) => SupportedProtocol::PingV1,
             RequestType::MetaData(req) => match req {
                 MetadataRequest::V1(_) => SupportedProtocol::MetaDataV1,
@@ -801,6 +809,12 @@ impl<P: Preset> RequestType<P> {
             RequestType::BlobsByRoot(_) => ResponseTermination::BlobsByRoot,
             RequestType::DataColumnsByRoot(_) => ResponseTermination::DataColumnsByRoot,
             RequestType::DataColumnsByRange(_) => ResponseTermination::DataColumnsByRange,
+            RequestType::ExecutionPayloadEnvelopesByRange(_) => {
+                ResponseTermination::ExecutionPayloadEnvelopesByRange
+            }
+            RequestType::ExecutionPayloadEnvelopesByRoot(_) => {
+                ResponseTermination::ExecutionPayloadEnvelopesByRoot
+            }
             RequestType::Status(_) => unreachable!(),
             RequestType::Goodbye(_) => unreachable!(),
             RequestType::Ping(_) => unreachable!(),
@@ -847,6 +861,14 @@ impl<P: Preset> RequestType<P> {
                 SupportedProtocol::DataColumnsByRangeV1,
                 Encoding::SSZSnappy,
             )],
+            RequestType::ExecutionPayloadEnvelopesByRange(_) => vec![ProtocolId::new(
+                SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1,
+                Encoding::SSZSnappy,
+            )],
+            RequestType::ExecutionPayloadEnvelopesByRoot(_) => vec![ProtocolId::new(
+                SupportedProtocol::ExecutionPayloadEnvelopesByRootV1,
+                Encoding::SSZSnappy,
+            )],
             RequestType::Ping(_) => vec![ProtocolId::new(
                 SupportedProtocol::PingV1,
                 Encoding::SSZSnappy,
@@ -891,6 +913,8 @@ impl<P: Preset> RequestType<P> {
             RequestType::LightClientOptimisticUpdate => true,
             RequestType::LightClientFinalityUpdate => true,
             RequestType::LightClientUpdatesByRange(_) => true,
+            RequestType::ExecutionPayloadEnvelopesByRange(_) => false,
+            RequestType::ExecutionPayloadEnvelopesByRoot(_) => false,
         }
     }
 }
@@ -1019,6 +1043,12 @@ impl<P: Preset> std::fmt::Display for RequestType<P> {
             }
             RequestType::LightClientUpdatesByRange(_) => {
                 write!(f, "Light client updates by range request")
+            }
+            RequestType::ExecutionPayloadEnvelopesByRange(req) => {
+                write!(f, "Execution payload envelopes by range: {:?}", req)
+            }
+            RequestType::ExecutionPayloadEnvelopesByRoot(req) => {
+                write!(f, "Execution payload envelopes by root: {:?}", req)
             }
         }
     }
