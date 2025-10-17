@@ -741,8 +741,8 @@ impl<P: Preset> std::fmt::Display for PubsubMessage<P> {
             PubsubMessage::ExecutionPayloadBid(data) => {
                 write!(
                     f,
-                    "Execution Payload Bid: slot: {}, beacon_block_root: {:?}, validator_index: {}",
-                    data.message.slot, data.message.beacon_block_root, data.message.validator_index
+                    "Execution Payload Bid: slot: {}, parent_block_root: {:?}, builder_index: {}",
+                    data.message.slot, data.message.parent_block_root, data.message.builder_index
                 )
             }
         }
