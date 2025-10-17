@@ -78,7 +78,7 @@ pub enum PubsubMessage<P: Preset> {
     /// Gossipsub message providing notification of a payload attestation message.
     PayloadAttestationMessage(Arc<PayloadAttestationMessage>),
     /// Gossipsub message providing notification of an execution payload bid.
-    ExecutionPayloadBid(Arc<SignedExecutionPayloadBid<P>>),
+    ExecutionPayloadBid(Arc<SignedExecutionPayloadBid>),
 }
 
 // Implements the `DataTransform` trait of gossipsub to employ snappy compression
