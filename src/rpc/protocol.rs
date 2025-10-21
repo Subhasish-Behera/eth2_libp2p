@@ -74,6 +74,11 @@ pub static DATA_COLUMN_GLOAS_MAX: LazyLock<usize> = LazyLock::new(|| {
         .len()
 });
 
+// ExecutionPayloadEnvelopes follow the same pattern as BeaconBlocks:
+// sizes are fork-dependent (not preset-dependent), so we use const instead of LazyLock.
+pub const SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MIN: usize = SIGNED_BEACON_BLOCK_PHASE0_MIN;
+pub const SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MAX: usize = SIGNED_BEACON_BLOCK_BELLATRIX_MAX;
+
 pub const ERROR_TYPE_MIN: usize = 0;
 pub const ERROR_TYPE_MAX: usize = 256;
 
@@ -168,6 +173,25 @@ fn rpc_light_client_bootstrap_limits_by_fork<P: Preset>(current_fork: Phase) -> 
     }
 }
 
+fn rpc_execution_payload_envelope_limits_by_fork(current_fork: Phase) -> RpcLimits {
+    match current_fork {
+        Phase::Phase0
+        | Phase::Altair
+        | Phase::Bellatrix
+        | Phase::Capella
+        | Phase::Deneb
+        | Phase::Electra
+        | Phase::Fulu => {
+            // ExecutionPayloadEnvelopes only available from Gloas onward
+            RpcLimits::new(0, 0)
+        }
+        Phase::Gloas => RpcLimits::new(
+            SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MIN,
+            SIGNED_EXECUTION_PAYLOAD_ENVELOPE_GLOAS_MAX,
+        ),
+    }
+}
+
 /// Protocol names to be used.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumString, AsRefStr, Display)]
 #[strum(serialize_all = "snake_case")]
@@ -194,6 +218,12 @@ pub enum Protocol {
     /// The `DataColumnSidecarsByRange` protocol name.
     #[strum(serialize = "data_column_sidecars_by_range")]
     DataColumnsByRange,
+    /// The `ExecutionPayloadEnvelopesByRange` protocol name.
+    #[strum(serialize = "execution_payload_envelopes_by_range")]
+    ExecutionPayloadEnvelopesByRange,
+    /// The `ExecutionPayloadEnvelopesByRoot` protocol name.
+    #[strum(serialize = "execution_payload_envelopes_by_root")]
+    ExecutionPayloadEnvelopesByRoot,
     /// The `Ping` protocol name.
     Ping,
     /// The `MetaData` protocol name.
@@ -224,6 +254,12 @@ impl Protocol {
             Protocol::BlobsByRoot => Some(ResponseTermination::BlobsByRoot),
             Protocol::DataColumnsByRoot => Some(ResponseTermination::DataColumnsByRoot),
             Protocol::DataColumnsByRange => Some(ResponseTermination::DataColumnsByRange),
+            Protocol::ExecutionPayloadEnvelopesByRange => {
+                Some(ResponseTermination::ExecutionPayloadEnvelopesByRange)
+            }
+            Protocol::ExecutionPayloadEnvelopesByRoot => {
+                Some(ResponseTermination::ExecutionPayloadEnvelopesByRoot)
+            }
             Protocol::Ping => None,
             Protocol::MetaData => None,
             Protocol::LightClientBootstrap => None,
@@ -256,6 +292,8 @@ pub enum SupportedProtocol {
     BlobsByRootV1,
     DataColumnsByRootV1,
     DataColumnsByRangeV1,
+    ExecutionPayloadEnvelopesByRangeV1,
+    ExecutionPayloadEnvelopesByRootV1,
     PingV1,
     MetaDataV1,
     MetaDataV2,
@@ -280,6 +318,8 @@ impl SupportedProtocol {
             SupportedProtocol::BlobsByRootV1 => "1",
             SupportedProtocol::DataColumnsByRootV1 => "1",
             SupportedProtocol::DataColumnsByRangeV1 => "1",
+            SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1 => "1",
+            SupportedProtocol::ExecutionPayloadEnvelopesByRootV1 => "1",
             SupportedProtocol::PingV1 => "1",
             SupportedProtocol::MetaDataV1 => "1",
             SupportedProtocol::MetaDataV2 => "2",
@@ -304,6 +344,12 @@ impl SupportedProtocol {
             SupportedProtocol::BlobsByRootV1 => Protocol::BlobsByRoot,
             SupportedProtocol::DataColumnsByRootV1 => Protocol::DataColumnsByRoot,
             SupportedProtocol::DataColumnsByRangeV1 => Protocol::DataColumnsByRange,
+            SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1 => {
+                Protocol::ExecutionPayloadEnvelopesByRange
+            }
+            SupportedProtocol::ExecutionPayloadEnvelopesByRootV1 => {
+                Protocol::ExecutionPayloadEnvelopesByRoot
+            }
             SupportedProtocol::PingV1 => Protocol::Ping,
             SupportedProtocol::MetaDataV1 => Protocol::MetaData,
             SupportedProtocol::MetaDataV2 => Protocol::MetaData,
@@ -352,6 +398,18 @@ impl SupportedProtocol {
             supported.extend_from_slice(&[
                 ProtocolId::new(SupportedProtocol::DataColumnsByRootV1, Encoding::SSZSnappy),
                 ProtocolId::new(SupportedProtocol::DataColumnsByRangeV1, Encoding::SSZSnappy),
+            ]);
+        }
+        if fork_context.fork_exists(Phase::Gloas) {
+            supported.extend_from_slice(&[
+                ProtocolId::new(
+                    SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1,
+                    Encoding::SSZSnappy,
+                ),
+                ProtocolId::new(
+                    SupportedProtocol::ExecutionPayloadEnvelopesByRootV1,
+                    Encoding::SSZSnappy,
+                ),
             ]);
         }
         supported
@@ -478,6 +536,14 @@ impl ProtocolId {
                 DataColumnsByRangeRequest::<P>::ssz_max_len()
                     .expect("Unable to get DataColumnsByRange ssz_max_len"),
             ),
+            Protocol::ExecutionPayloadEnvelopesByRoot => RpcLimits::new(
+                0,
+                chain_config.max_request_payloads as usize * H256::SIZE.get(),
+            ),
+            Protocol::ExecutionPayloadEnvelopesByRange => RpcLimits::new(
+                ExecutionPayloadEnvelopesByRangeRequest::SIZE.get(),
+                ExecutionPayloadEnvelopesByRangeRequest::SIZE.get(),
+            ),
             Protocol::Ping => RpcLimits::new(Ping::SIZE.get(), Ping::SIZE.get()),
             Protocol::LightClientBootstrap => RpcLimits::new(
                 LightClientBootstrapRequest::SIZE.get(),
@@ -506,6 +572,12 @@ impl ProtocolId {
             }
             Protocol::DataColumnsByRange => {
                 rpc_data_column_limits::<P>(fork_context.current_fork_name())
+            }
+            Protocol::ExecutionPayloadEnvelopesByRange => {
+                rpc_execution_payload_envelope_limits_by_fork(fork_context.current_fork_name())
+            }
+            Protocol::ExecutionPayloadEnvelopesByRoot => {
+                rpc_execution_payload_envelope_limits_by_fork(fork_context.current_fork_name())
             }
             Protocol::Ping => RpcLimits::new(Ping::SIZE.get(), Ping::SIZE.get()),
             Protocol::MetaData => RpcLimits::new(MetaDataV1::SIZE.get(), MetaDataV3::SIZE.get()),
@@ -540,6 +612,8 @@ impl ProtocolId {
             | SupportedProtocol::BlobsByRootV1
             | SupportedProtocol::DataColumnsByRootV1
             | SupportedProtocol::DataColumnsByRangeV1
+            | SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1
+            | SupportedProtocol::ExecutionPayloadEnvelopesByRootV1
             | SupportedProtocol::LightClientBootstrapV1
             | SupportedProtocol::LightClientOptimisticUpdateV1
             | SupportedProtocol::LightClientFinalityUpdateV1
@@ -654,6 +728,8 @@ pub enum RequestType<P: Preset> {
     BlobsByRoot(BlobsByRootRequest),
     DataColumnsByRoot(DataColumnsByRootRequest<P>),
     DataColumnsByRange(DataColumnsByRangeRequest<P>),
+    ExecutionPayloadEnvelopesByRange(ExecutionPayloadEnvelopesByRangeRequest),
+    ExecutionPayloadEnvelopesByRoot(ExecutionPayloadEnvelopesByRootRequest),
     LightClientBootstrap(LightClientBootstrapRequest),
     LightClientOptimisticUpdate,
     LightClientFinalityUpdate,
@@ -680,6 +756,8 @@ impl<P: Preset> RequestType<P> {
             RequestType::BlobsByRoot(req) => req.blob_ids.len() as u64,
             RequestType::DataColumnsByRoot(req) => req.max_requested() as u64,
             RequestType::DataColumnsByRange(req) => req.max_requested(),
+            RequestType::ExecutionPayloadEnvelopesByRange(req) => req.max_requested(),
+            RequestType::ExecutionPayloadEnvelopesByRoot(req) => req.max_requested() as u64,
             RequestType::Ping(_) => 1,
             RequestType::MetaData(_) => 1,
             RequestType::LightClientBootstrap(_) => 1,
@@ -709,6 +787,12 @@ impl<P: Preset> RequestType<P> {
             RequestType::BlobsByRoot(_) => SupportedProtocol::BlobsByRootV1,
             RequestType::DataColumnsByRoot(_) => SupportedProtocol::DataColumnsByRootV1,
             RequestType::DataColumnsByRange(_) => SupportedProtocol::DataColumnsByRangeV1,
+            RequestType::ExecutionPayloadEnvelopesByRange(_) => {
+                SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1
+            }
+            RequestType::ExecutionPayloadEnvelopesByRoot(_) => {
+                SupportedProtocol::ExecutionPayloadEnvelopesByRootV1
+            }
             RequestType::Ping(_) => SupportedProtocol::PingV1,
             RequestType::MetaData(req) => match req {
                 MetadataRequest::V1(_) => SupportedProtocol::MetaDataV1,
@@ -740,6 +824,12 @@ impl<P: Preset> RequestType<P> {
             RequestType::BlobsByRoot(_) => ResponseTermination::BlobsByRoot,
             RequestType::DataColumnsByRoot(_) => ResponseTermination::DataColumnsByRoot,
             RequestType::DataColumnsByRange(_) => ResponseTermination::DataColumnsByRange,
+            RequestType::ExecutionPayloadEnvelopesByRange(_) => {
+                ResponseTermination::ExecutionPayloadEnvelopesByRange
+            }
+            RequestType::ExecutionPayloadEnvelopesByRoot(_) => {
+                ResponseTermination::ExecutionPayloadEnvelopesByRoot
+            }
             RequestType::Status(_) => unreachable!(),
             RequestType::Goodbye(_) => unreachable!(),
             RequestType::Ping(_) => unreachable!(),
@@ -786,6 +876,14 @@ impl<P: Preset> RequestType<P> {
                 SupportedProtocol::DataColumnsByRangeV1,
                 Encoding::SSZSnappy,
             )],
+            RequestType::ExecutionPayloadEnvelopesByRange(_) => vec![ProtocolId::new(
+                SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1,
+                Encoding::SSZSnappy,
+            )],
+            RequestType::ExecutionPayloadEnvelopesByRoot(_) => vec![ProtocolId::new(
+                SupportedProtocol::ExecutionPayloadEnvelopesByRootV1,
+                Encoding::SSZSnappy,
+            )],
             RequestType::Ping(_) => vec![ProtocolId::new(
                 SupportedProtocol::PingV1,
                 Encoding::SSZSnappy,
@@ -830,6 +928,8 @@ impl<P: Preset> RequestType<P> {
             RequestType::LightClientOptimisticUpdate => true,
             RequestType::LightClientFinalityUpdate => true,
             RequestType::LightClientUpdatesByRange(_) => true,
+            RequestType::ExecutionPayloadEnvelopesByRange(_) => false,
+            RequestType::ExecutionPayloadEnvelopesByRoot(_) => false,
         }
     }
 }
@@ -962,6 +1062,12 @@ impl<P: Preset> std::fmt::Display for RequestType<P> {
             }
             RequestType::LightClientUpdatesByRange(_) => {
                 write!(f, "Light client updates by range request")
+            }
+            RequestType::ExecutionPayloadEnvelopesByRange(req) => {
+                write!(f, "Execution payload envelopes by range: {:?}", req)
+            }
+            RequestType::ExecutionPayloadEnvelopesByRoot(req) => {
+                write!(f, "Execution payload envelopes by root: {:?}", req)
             }
         }
     }
