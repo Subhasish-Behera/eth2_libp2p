@@ -104,6 +104,12 @@ pub fn core_topics_to_subscribe(
         }
     }
 
+    if current_phase >= Phase::Gloas {
+        topics.push(GossipKind::ExecutionPayload);
+        topics.push(GossipKind::PayloadAttestationMessage);
+        topics.push(GossipKind::ExecutionPayloadBid);
+    }
+
     topics
 }
 

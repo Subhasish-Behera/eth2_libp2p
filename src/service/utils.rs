@@ -349,6 +349,9 @@ pub(crate) fn create_whitelist_filter(
         for id in 0..chain_config.data_column_sidecar_subnet_count {
             add(DataColumnSidecar(id));
         }
+        add(ExecutionPayload);
+        add(PayloadAttestationMessage);
+        add(ExecutionPayloadBid);
     }
     gossipsub::WhitelistSubscriptionFilter(possible_hashes)
 }
