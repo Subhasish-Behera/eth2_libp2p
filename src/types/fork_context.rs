@@ -285,13 +285,15 @@ mod tests {
 
         let context = ForkContext::new::<Mainnet>(&chain_config, gloas_slot, genesis_root);
 
-        // Before: next fork exists (BPO at epoch 50)
-        let bpo_50_digest = misc::compute_fork_digest(&chain_config, genesis_root, 50);
-        assert_eq!(context.next_fork_digest(), bpo_50_digest);
+        // Before: next fork is Heze (rapid_upgrade schedules it right after Gloas)
+        let heze_digest =
+            misc::compute_fork_digest(&chain_config, genesis_root, chain_config.heze_fork_epoch);
+        assert_eq!(context.next_fork_digest(), heze_digest);
 
         // Simulate runtime transitions to the last BPO fork (epoch 100)
-        context.update_current_fork(); // epoch 7 → 50
-        context.update_current_fork(); // epoch 50 → 100
+        context.update_current_fork(); // Gloas → Heze
+        context.update_current_fork(); // Heze → BPO 50
+        context.update_current_fork(); // BPO 50 → BPO 100
 
         // After: no next fork — must return zero bytes per spec
         assert_eq!(context.next_fork_digest(), ForkDigest::default());

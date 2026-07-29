@@ -34,6 +34,7 @@ use types::{
         DataColumnSidecar as GloasDataColumnSidecar, SignedBeaconBlock as GloasSignedBeaconBlock,
         SignedExecutionPayloadEnvelope,
     },
+    heze::containers::SignedBeaconBlock as HezeSignedBeaconBlock,
     nonstandard::Phase,
     phase0::{containers::SignedBeaconBlock as Phase0SignedBeaconBlock, primitives::ForkDigest},
     preset::Preset,
@@ -729,7 +730,7 @@ fn handle_rpc_response<P: Preset>(
             SignedBeaconBlock::Phase0(Phase0SignedBeaconBlock::from_ssz_default(decoded_buffer)?),
         )))),
         SupportedProtocol::BlobsByRangeV1 => match fork_name {
-            Some(Phase::Deneb | Phase::Electra | Phase::Fulu | Phase::Gloas) => {
+            Some(Phase::Deneb | Phase::Electra | Phase::Fulu | Phase::Gloas | Phase::Heze) => {
                 Ok(Some(RpcSuccessResponse::BlobsByRange(Arc::new(
                     BlobSidecar::from_ssz_default(decoded_buffer)?,
                 ))))
@@ -749,7 +750,7 @@ fn handle_rpc_response<P: Preset>(
             )),
         },
         SupportedProtocol::BlobsByRootV1 => match fork_name {
-            Some(Phase::Deneb | Phase::Electra | Phase::Fulu | Phase::Gloas) => {
+            Some(Phase::Deneb | Phase::Electra | Phase::Fulu | Phase::Gloas | Phase::Heze) => {
                 Ok(Some(RpcSuccessResponse::BlobsByRoot(Arc::new(
                     BlobSidecar::from_ssz_default(decoded_buffer)?,
                 ))))
@@ -769,7 +770,7 @@ fn handle_rpc_response<P: Preset>(
             )),
         },
         SupportedProtocol::DataColumnsByRootV1 => match fork_name {
-            Some(Phase::Gloas) => Ok(Some(RpcSuccessResponse::DataColumnsByRoot(Arc::new(
+            Some(Phase::Gloas | Phase::Heze) => Ok(Some(RpcSuccessResponse::DataColumnsByRoot(Arc::new(
                 GloasDataColumnSidecar::from_ssz_default(decoded_buffer)?.into(),
             )))),
             Some(Phase::Fulu) => Ok(Some(RpcSuccessResponse::DataColumnsByRoot(Arc::new(
@@ -795,7 +796,7 @@ fn handle_rpc_response<P: Preset>(
             )),
         },
         SupportedProtocol::DataColumnsByRangeV1 => match fork_name {
-            Some(Phase::Gloas) => Ok(Some(RpcSuccessResponse::DataColumnsByRange(Arc::new(
+            Some(Phase::Gloas | Phase::Heze) => Ok(Some(RpcSuccessResponse::DataColumnsByRange(Arc::new(
                 GloasDataColumnSidecar::from_ssz_default(decoded_buffer)?.into(),
             )))),
             Some(Phase::Fulu) => Ok(Some(RpcSuccessResponse::DataColumnsByRange(Arc::new(
@@ -821,7 +822,7 @@ fn handle_rpc_response<P: Preset>(
             )),
         },
         SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1 => match fork_name {
-            Some(Phase::Gloas) => Ok(Some(RpcSuccessResponse::ExecutionPayloadEnvelopesByRange(
+            Some(Phase::Gloas | Phase::Heze) => Ok(Some(RpcSuccessResponse::ExecutionPayloadEnvelopesByRange(
                 Arc::new(SignedExecutionPayloadEnvelope::from_ssz_default(
                     decoded_buffer,
                 )?),
@@ -847,7 +848,7 @@ fn handle_rpc_response<P: Preset>(
             )),
         },
         SupportedProtocol::ExecutionPayloadEnvelopesByRootV1 => match fork_name {
-            Some(Phase::Gloas) => Ok(Some(RpcSuccessResponse::ExecutionPayloadEnvelopesByRoot(
+            Some(Phase::Gloas | Phase::Heze) => Ok(Some(RpcSuccessResponse::ExecutionPayloadEnvelopesByRoot(
                 Arc::new(SignedExecutionPayloadEnvelope::from_ssz_default(
                     decoded_buffer,
                 )?),
@@ -915,6 +916,11 @@ fn handle_rpc_response<P: Preset>(
                     .map(LightClientBootstrap::Gloas)
                     .map(Arc::new)?,
             ))),
+            Some(Phase::Heze) => Ok(Some(RpcSuccessResponse::LightClientBootstrap(
+                SszReadDefault::from_ssz_default(decoded_buffer)
+                    .map(LightClientBootstrap::Gloas)
+                    .map(Arc::new)?,
+            ))),
             None => Err(RPCError::ErrorResponse(
                 RpcErrorResponse::InvalidRequest,
                 format!(
@@ -958,6 +964,11 @@ fn handle_rpc_response<P: Preset>(
                     .map(Arc::new)?,
             ))),
             Some(Phase::Gloas) => Ok(Some(RpcSuccessResponse::LightClientOptimisticUpdate(
+                SszReadDefault::from_ssz_default(decoded_buffer)
+                    .map(LightClientOptimisticUpdate::Gloas)
+                    .map(Arc::new)?,
+            ))),
+            Some(Phase::Heze) => Ok(Some(RpcSuccessResponse::LightClientOptimisticUpdate(
                 SszReadDefault::from_ssz_default(decoded_buffer)
                     .map(LightClientOptimisticUpdate::Gloas)
                     .map(Arc::new)?,
@@ -1007,6 +1018,11 @@ fn handle_rpc_response<P: Preset>(
                     .map(LightClientFinalityUpdate::Gloas)
                     .map(Arc::new)?,
             ))),
+            Some(Phase::Heze) => Ok(Some(RpcSuccessResponse::LightClientFinalityUpdate(
+                SszReadDefault::from_ssz_default(decoded_buffer)
+                    .map(LightClientFinalityUpdate::Gloas)
+                    .map(Arc::new)?,
+            ))),
             None => Err(RPCError::ErrorResponse(
                 RpcErrorResponse::InvalidRequest,
                 format!(
@@ -1048,6 +1064,11 @@ fn handle_rpc_response<P: Preset>(
                     .map(Arc::new)?,
             ))),
             Some(Phase::Gloas) => Ok(Some(RpcSuccessResponse::LightClientUpdatesByRange(
+                SszReadDefault::from_ssz_default(decoded_buffer)
+                    .map(LightClientUpdate::Gloas)
+                    .map(Arc::new)?,
+            ))),
+            Some(Phase::Heze) => Ok(Some(RpcSuccessResponse::LightClientUpdatesByRange(
                 SszReadDefault::from_ssz_default(decoded_buffer)
                     .map(LightClientUpdate::Gloas)
                     .map(Arc::new)?,
@@ -1102,6 +1123,9 @@ fn handle_rpc_response<P: Preset>(
             Some(Phase::Gloas) => Ok(Some(RpcSuccessResponse::BlocksByRange(Arc::new(
                 SignedBeaconBlock::Gloas(GloasSignedBeaconBlock::from_ssz_default(decoded_buffer)?),
             )))),
+            Some(Phase::Heze) => Ok(Some(RpcSuccessResponse::BlocksByRange(Arc::new(
+                SignedBeaconBlock::Heze(HezeSignedBeaconBlock::from_ssz_default(decoded_buffer)?),
+            )))),
             None => Err(RPCError::ErrorResponse(
                 RpcErrorResponse::InvalidRequest,
                 format!(
@@ -1144,6 +1168,9 @@ fn handle_rpc_response<P: Preset>(
             )))),
             Some(Phase::Gloas) => Ok(Some(RpcSuccessResponse::BlocksByRoot(Arc::new(
                 SignedBeaconBlock::Gloas(GloasSignedBeaconBlock::from_ssz_default(decoded_buffer)?),
+            )))),
+            Some(Phase::Heze) => Ok(Some(RpcSuccessResponse::BlocksByRoot(Arc::new(
+                SignedBeaconBlock::Heze(HezeSignedBeaconBlock::from_ssz_default(decoded_buffer)?),
             )))),
             None => Err(RPCError::ErrorResponse(
                 RpcErrorResponse::InvalidRequest,
