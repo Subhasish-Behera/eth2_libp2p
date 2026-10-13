@@ -34,7 +34,7 @@ use types::{
         DataColumnSidecar as GloasDataColumnSidecar, SignedBeaconBlock as GloasSignedBeaconBlock,
         SignedExecutionPayloadEnvelope,
     },
-    heze::containers::SignedBeaconBlock as HezeSignedBeaconBlock,
+    heze::containers::{SignedBeaconBlock as HezeSignedBeaconBlock, SignedInclusionList},
     nonstandard::Phase,
     phase0::{containers::SignedBeaconBlock as Phase0SignedBeaconBlock, primitives::ForkDigest},
     preset::Preset,
@@ -102,6 +102,7 @@ impl<P: Preset> SSZSnappyInboundCodec<P> {
                 RpcSuccessResponse::DataColumnsByRange(res) => res.to_ssz()?,
                 RpcSuccessResponse::ExecutionPayloadEnvelopesByRoot(res) => res.to_ssz()?,
                 RpcSuccessResponse::ExecutionPayloadEnvelopesByRange(res) => res.to_ssz()?,
+                RpcSuccessResponse::InclusionListsByIndices(res) => res.to_ssz()?,
                 RpcSuccessResponse::LightClientBootstrap(res) => res.to_ssz()?,
                 RpcSuccessResponse::LightClientOptimisticUpdate(res) => res.to_ssz()?,
                 RpcSuccessResponse::LightClientFinalityUpdate(res) => res.to_ssz()?,
@@ -403,6 +404,7 @@ impl<P: Preset> Encoder<RequestType<P>> for SSZSnappyOutboundCodec<P> {
             RequestType::DataColumnsByRoot(req) => req.data_column_ids.to_ssz()?,
             RequestType::ExecutionPayloadEnvelopesByRange(req) => req.to_ssz()?,
             RequestType::ExecutionPayloadEnvelopesByRoot(req) => req.block_roots.to_ssz()?,
+            RequestType::InclusionListsByIndices(req) => req.to_ssz()?,
             RequestType::Ping(req) => req.to_ssz()?,
             RequestType::LightClientBootstrap(req) => req.to_ssz()?,
             RequestType::LightClientUpdatesByRange(req) => req.to_ssz()?,
@@ -650,6 +652,11 @@ fn handle_rpc_request<P: Preset>(
                 )?,
             }),
         )),
+        SupportedProtocol::InclusionListsByIndicesV1 => {
+            Ok(Some(RequestType::InclusionListsByIndices(
+                InclusionListsByIndicesRequest::from_ssz_default(decoded_buffer)?,
+            )))
+        }
         SupportedProtocol::PingV1 => Ok(Some(RequestType::Ping(Ping {
             data: u64::from_ssz_default(decoded_buffer)?,
         }))),
@@ -864,6 +871,31 @@ fn handle_rpc_response<P: Preset>(
             ) => Err(RPCError::ErrorResponse(
                 RpcErrorResponse::InvalidRequest,
                 "Invalid fork name for execution payload envelopes by root".to_string(),
+            )),
+            None => Err(RPCError::ErrorResponse(
+                RpcErrorResponse::InvalidRequest,
+                format!(
+                    "No context bytes provided for {:?} response",
+                    versioned_protocol
+                ),
+            )),
+        },
+        SupportedProtocol::InclusionListsByIndicesV1 => match fork_name {
+            Some(Phase::Heze) => Ok(Some(RpcSuccessResponse::InclusionListsByIndices(Arc::new(
+                SignedInclusionList::from_ssz_default(decoded_buffer)?,
+            )))),
+            Some(
+                Phase::Phase0
+                | Phase::Altair
+                | Phase::Bellatrix
+                | Phase::Capella
+                | Phase::Deneb
+                | Phase::Electra
+                | Phase::Fulu
+                | Phase::Gloas,
+            ) => Err(RPCError::ErrorResponse(
+                RpcErrorResponse::InvalidRequest,
+                "Invalid fork name for inclusion lists by indices".to_string(),
             )),
             None => Err(RPCError::ErrorResponse(
                 RpcErrorResponse::InvalidRequest,
@@ -1591,6 +1623,9 @@ mod tests {
                     decoded,
                     RequestType::ExecutionPayloadEnvelopesByRoot(epbroot)
                 )
+            }
+            RequestType::InclusionListsByIndices(ilbi) => {
+                assert_eq!(decoded, RequestType::InclusionListsByIndices(ilbi))
             }
             RequestType::Ping(ping) => {
                 assert_eq!(decoded, RequestType::Ping(ping))

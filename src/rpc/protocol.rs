@@ -24,6 +24,7 @@ use types::fulu::containers::DataColumnSidecar as FuluDataColumnSidecar;
 use types::gloas::containers::{
     DataColumnSidecar as GloasDataColumnSidecar, SignedExecutionPayloadEnvelope,
 };
+use types::heze::containers::SignedInclusionList;
 use types::phase0::primitives::Epoch;
 use types::{
     altair::containers::{
@@ -203,6 +204,27 @@ fn rpc_execution_payload_envelope_limits() -> RpcLimits {
     )
 }
 
+pub static SIGNED_INCLUSION_LIST_MIN: LazyLock<usize> = LazyLock::new(|| {
+    SignedInclusionList::<Mainnet>::default()
+        .to_ssz()
+        .expect("default SignedInclusionList should serialize")
+        .len()
+});
+
+/// Minimum and maximum SSZ size of `SignedInclusionList`. The maximum is the spec's
+/// `MAX_SIGNED_INCLUSION_LIST_SIZE`: the worst case is `MAX_TRANSACTIONS_BYTES_PER_INCLUSION_LIST`
+/// one-byte transactions, each costing its byte plus a length offset.
+fn rpc_inclusion_list_limits(chain_config: &ChainConfig) -> RpcLimits {
+    let max_transactions = chain_config
+        .max_transactions_bytes_per_inclusion_list
+        .saturating_mul(1 + BYTES_PER_LENGTH_OFFSET.get());
+
+    RpcLimits::new(
+        *SIGNED_INCLUSION_LIST_MIN,
+        SIGNED_INCLUSION_LIST_MIN.saturating_add(max_transactions),
+    )
+}
+
 /// Protocol names to be used.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumString, AsRefStr, Display)]
 #[strum(serialize_all = "snake_case")]
@@ -235,6 +257,9 @@ pub enum Protocol {
     /// The `ExecutionPayloadEnvelopesByRoot` protocol name.
     #[strum(serialize = "execution_payload_envelopes_by_root")]
     ExecutionPayloadEnvelopesByRoot,
+    /// The `InclusionListsByIndices` protocol name.
+    #[strum(serialize = "inclusion_lists_by_indices")]
+    InclusionListsByIndices,
     /// The `Ping` protocol name.
     Ping,
     /// The `MetaData` protocol name.
@@ -271,6 +296,7 @@ impl Protocol {
             Protocol::ExecutionPayloadEnvelopesByRoot => {
                 Some(ResponseTermination::ExecutionPayloadEnvelopesByRoot)
             }
+            Protocol::InclusionListsByIndices => Some(ResponseTermination::InclusionListsByIndices),
             Protocol::Ping => None,
             Protocol::MetaData => None,
             Protocol::LightClientBootstrap => None,
@@ -305,6 +331,7 @@ pub enum SupportedProtocol {
     DataColumnsByRangeV1,
     ExecutionPayloadEnvelopesByRangeV1,
     ExecutionPayloadEnvelopesByRootV1,
+    InclusionListsByIndicesV1,
     PingV1,
     MetaDataV1,
     MetaDataV2,
@@ -331,6 +358,7 @@ impl SupportedProtocol {
             SupportedProtocol::DataColumnsByRangeV1 => "1",
             SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1 => "1",
             SupportedProtocol::ExecutionPayloadEnvelopesByRootV1 => "1",
+            SupportedProtocol::InclusionListsByIndicesV1 => "1",
             SupportedProtocol::PingV1 => "1",
             SupportedProtocol::MetaDataV1 => "1",
             SupportedProtocol::MetaDataV2 => "2",
@@ -361,6 +389,7 @@ impl SupportedProtocol {
             SupportedProtocol::ExecutionPayloadEnvelopesByRootV1 => {
                 Protocol::ExecutionPayloadEnvelopesByRoot
             }
+            SupportedProtocol::InclusionListsByIndicesV1 => Protocol::InclusionListsByIndices,
             SupportedProtocol::PingV1 => Protocol::Ping,
             SupportedProtocol::MetaDataV1 => Protocol::MetaData,
             SupportedProtocol::MetaDataV2 => Protocol::MetaData,
@@ -422,6 +451,12 @@ impl SupportedProtocol {
                     Encoding::SSZSnappy,
                 ),
             ]);
+        }
+        if fork_context.fork_exists(Phase::Heze) {
+            supported.push(ProtocolId::new(
+                SupportedProtocol::InclusionListsByIndicesV1,
+                Encoding::SSZSnappy,
+            ));
         }
         supported
     }
@@ -555,6 +590,10 @@ impl ProtocolId {
                 ExecutionPayloadEnvelopesByRangeRequest::SIZE.get(),
                 ExecutionPayloadEnvelopesByRangeRequest::SIZE.get(),
             ),
+            Protocol::InclusionListsByIndices => RpcLimits::new(
+                InclusionListsByIndicesRequest::<P>::SIZE.get(),
+                InclusionListsByIndicesRequest::<P>::SIZE.get(),
+            ),
             Protocol::Ping => RpcLimits::new(Ping::SIZE.get(), Ping::SIZE.get()),
             Protocol::LightClientBootstrap => RpcLimits::new(
                 LightClientBootstrapRequest::SIZE.get(),
@@ -588,6 +627,9 @@ impl ProtocolId {
             ),
             Protocol::ExecutionPayloadEnvelopesByRange => rpc_execution_payload_envelope_limits(),
             Protocol::ExecutionPayloadEnvelopesByRoot => rpc_execution_payload_envelope_limits(),
+            Protocol::InclusionListsByIndices => {
+                rpc_inclusion_list_limits(fork_context.chain_config())
+            }
             Protocol::Ping => RpcLimits::new(Ping::SIZE.get(), Ping::SIZE.get()),
             Protocol::MetaData => RpcLimits::new(MetaDataV1::SIZE.get(), MetaDataV3::SIZE.get()),
             Protocol::LightClientBootstrap => {
@@ -623,6 +665,7 @@ impl ProtocolId {
             | SupportedProtocol::DataColumnsByRangeV1
             | SupportedProtocol::ExecutionPayloadEnvelopesByRangeV1
             | SupportedProtocol::ExecutionPayloadEnvelopesByRootV1
+            | SupportedProtocol::InclusionListsByIndicesV1
             | SupportedProtocol::LightClientBootstrapV1
             | SupportedProtocol::LightClientOptimisticUpdateV1
             | SupportedProtocol::LightClientFinalityUpdateV1
@@ -741,6 +784,7 @@ pub enum RequestType<P: Preset> {
     DataColumnsByRange(DataColumnsByRangeRequest<P>),
     ExecutionPayloadEnvelopesByRange(ExecutionPayloadEnvelopesByRangeRequest),
     ExecutionPayloadEnvelopesByRoot(ExecutionPayloadEnvelopesByRootRequest),
+    InclusionListsByIndices(InclusionListsByIndicesRequest<P>),
     LightClientBootstrap(LightClientBootstrapRequest),
     LightClientOptimisticUpdate,
     LightClientFinalityUpdate,
@@ -769,6 +813,7 @@ impl<P: Preset> RequestType<P> {
             RequestType::DataColumnsByRange(req) => req.max_requested(),
             RequestType::ExecutionPayloadEnvelopesByRange(req) => req.max_requested(),
             RequestType::ExecutionPayloadEnvelopesByRoot(req) => req.max_requested() as u64,
+            RequestType::InclusionListsByIndices(req) => req.max_requested() as u64,
             RequestType::Ping(_) => 1,
             RequestType::MetaData(_) => 1,
             RequestType::LightClientBootstrap(_) => 1,
@@ -804,6 +849,7 @@ impl<P: Preset> RequestType<P> {
             RequestType::ExecutionPayloadEnvelopesByRoot(_) => {
                 SupportedProtocol::ExecutionPayloadEnvelopesByRootV1
             }
+            RequestType::InclusionListsByIndices(_) => SupportedProtocol::InclusionListsByIndicesV1,
             RequestType::Ping(_) => SupportedProtocol::PingV1,
             RequestType::MetaData(req) => match req {
                 MetadataRequest::V1(_) => SupportedProtocol::MetaDataV1,
@@ -841,6 +887,7 @@ impl<P: Preset> RequestType<P> {
             RequestType::ExecutionPayloadEnvelopesByRoot(_) => {
                 ResponseTermination::ExecutionPayloadEnvelopesByRoot
             }
+            RequestType::InclusionListsByIndices(_) => ResponseTermination::InclusionListsByIndices,
             RequestType::Status(_) => unreachable!(),
             RequestType::Goodbye(_) => unreachable!(),
             RequestType::Ping(_) => unreachable!(),
@@ -895,6 +942,10 @@ impl<P: Preset> RequestType<P> {
                 SupportedProtocol::ExecutionPayloadEnvelopesByRootV1,
                 Encoding::SSZSnappy,
             )],
+            RequestType::InclusionListsByIndices(_) => vec![ProtocolId::new(
+                SupportedProtocol::InclusionListsByIndicesV1,
+                Encoding::SSZSnappy,
+            )],
             RequestType::Ping(_) => vec![ProtocolId::new(
                 SupportedProtocol::PingV1,
                 Encoding::SSZSnappy,
@@ -941,6 +992,7 @@ impl<P: Preset> RequestType<P> {
             RequestType::LightClientUpdatesByRange(_) => true,
             RequestType::ExecutionPayloadEnvelopesByRange(_) => false,
             RequestType::ExecutionPayloadEnvelopesByRoot(_) => false,
+            RequestType::InclusionListsByIndices(_) => false,
         }
     }
 }
@@ -1082,6 +1134,9 @@ impl<P: Preset> std::fmt::Display for RequestType<P> {
             }
             RequestType::ExecutionPayloadEnvelopesByRoot(req) => {
                 write!(f, "Execution payload envelopes by root: {:?}", req)
+            }
+            RequestType::InclusionListsByIndices(req) => {
+                write!(f, "Inclusion lists by indices: {:?}", req)
             }
         }
     }

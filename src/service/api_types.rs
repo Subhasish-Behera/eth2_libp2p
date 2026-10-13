@@ -8,6 +8,7 @@ use types::{
     },
     deneb::containers::BlobSidecar,
     gloas::containers::SignedExecutionPayloadEnvelope,
+    heze::containers::SignedInclusionList,
     preset::Preset,
 };
 
@@ -46,6 +47,8 @@ pub enum Response<P: Preset> {
     ExecutionPayloadEnvelopesByRange(Option<Arc<SignedExecutionPayloadEnvelope<P>>>),
     // A response to a get EXECUTION_PAYLOAD_ENVELOPES_BY_ROOT request.
     ExecutionPayloadEnvelopesByRoot(Option<Arc<SignedExecutionPayloadEnvelope<P>>>),
+    /// A response to a get INCLUSION_LISTS_BY_INDICES request.
+    InclusionListsByIndices(Option<Arc<SignedInclusionList<P>>>),
     /// A response to a LightClientUpdate request.
     LightClientBootstrap(Arc<LightClientBootstrap<P>>),
     /// A response to a LightClientOptimisticUpdate request.
@@ -98,6 +101,12 @@ impl<P: Preset> std::convert::From<Response<P>> for RpcResponse<P> {
                 None => RpcResponse::StreamTermination(
                     ResponseTermination::ExecutionPayloadEnvelopesByRange,
                 ),
+            },
+            Response::InclusionListsByIndices(r) => match r {
+                Some(l) => RpcResponse::Success(RpcSuccessResponse::InclusionListsByIndices(l)),
+                None => {
+                    RpcResponse::StreamTermination(ResponseTermination::InclusionListsByIndices)
+                }
             },
             Response::Status(s) => RpcResponse::Success(RpcSuccessResponse::Status(s)),
             Response::LightClientBootstrap(b) => {

@@ -1649,6 +1649,17 @@ impl<P: Preset> Network<P> {
                             request_type,
                         })
                     }
+                    RequestType::InclusionListsByIndices(_) => {
+                        metrics::inc_counter_vec(
+                            &metrics::TOTAL_RPC_REQUESTS,
+                            &["inclusion_lists_by_indices"],
+                        );
+                        Some(NetworkEvent::RequestReceived {
+                            peer_id,
+                            inbound_request_id,
+                            request_type,
+                        })
+                    }
                     RequestType::LightClientBootstrap(_) => {
                         metrics::inc_counter_vec(
                             &metrics::TOTAL_RPC_REQUESTS,
@@ -1746,6 +1757,11 @@ impl<P: Preset> Network<P> {
                             peer_id,
                             Response::ExecutionPayloadEnvelopesByRoot(Some(resp)),
                         ),
+                    RpcSuccessResponse::InclusionListsByIndices(resp) => self.build_response(
+                        id,
+                        peer_id,
+                        Response::InclusionListsByIndices(Some(resp)),
+                    ),
                     // Should never be reached
                     RpcSuccessResponse::LightClientBootstrap(bootstrap) => {
                         self.build_response(id, peer_id, Response::LightClientBootstrap(bootstrap))
@@ -1780,6 +1796,9 @@ impl<P: Preset> Network<P> {
                     }
                     ResponseTermination::ExecutionPayloadEnvelopesByRoot => {
                         Response::ExecutionPayloadEnvelopesByRoot(None)
+                    }
+                    ResponseTermination::InclusionListsByIndices => {
+                        Response::InclusionListsByIndices(None)
                     }
                     ResponseTermination::LightClientUpdatesByRange => {
                         Response::LightClientUpdatesByRange(None)

@@ -95,6 +95,7 @@ pub struct RateLimiterConfig {
     pub(super) data_columns_by_range_quota: Quota,
     pub(super) execution_payload_envelopes_by_range_quota: Quota,
     pub(super) execution_payload_envelopes_by_root_quota: Quota,
+    pub(super) inclusion_lists_by_indices_quota: Quota,
     pub(super) light_client_bootstrap_quota: Quota,
     pub(super) light_client_optimistic_update_quota: Quota,
     pub(super) light_client_finality_update_quota: Quota,
@@ -132,6 +133,10 @@ impl RateLimiterConfig {
         Quota::n_every(NonZeroU64::new(128).unwrap(), 10);
     pub const DEFAULT_EXECUTION_PAYLOAD_ENVELOPES_BY_ROOT_QUOTA: Quota =
         Quota::n_every(NonZeroU64::new(128).unwrap(), 10);
+    // A request costs at most `MAX_REQUEST_INCLUSION_LIST` (16) tokens, so this allows 8 full
+    // requests every 10 seconds.
+    pub const DEFAULT_INCLUSION_LISTS_BY_INDICES_QUOTA: Quota =
+        Quota::n_every(NonZeroU64::new(128).unwrap(), 10);
 }
 
 impl Default for RateLimiterConfig {
@@ -151,6 +156,7 @@ impl Default for RateLimiterConfig {
                 Self::DEFAULT_EXECUTION_PAYLOAD_ENVELOPES_BY_RANGE_QUOTA,
             execution_payload_envelopes_by_root_quota:
                 Self::DEFAULT_EXECUTION_PAYLOAD_ENVELOPES_BY_ROOT_QUOTA,
+            inclusion_lists_by_indices_quota: Self::DEFAULT_INCLUSION_LISTS_BY_INDICES_QUOTA,
             light_client_bootstrap_quota: Self::DEFAULT_LIGHT_CLIENT_BOOTSTRAP_QUOTA,
             light_client_optimistic_update_quota:
                 Self::DEFAULT_LIGHT_CLIENT_OPTIMISTIC_UPDATE_QUOTA,
@@ -197,6 +203,10 @@ impl Debug for RateLimiterConfig {
                 "execution_payload_envelopes_by_root",
                 fmt_q!(&self.execution_payload_envelopes_by_root_quota),
             )
+            .field(
+                "inclusion_lists_by_indices",
+                fmt_q!(&self.inclusion_lists_by_indices_quota),
+            )
             .finish()
     }
 }
@@ -221,6 +231,7 @@ impl FromStr for RateLimiterConfig {
         let mut data_columns_by_range_quota = None;
         let mut execution_payload_envelopes_by_range_quota = None;
         let mut execution_payload_envelopes_by_root_quota = None;
+        let mut inclusion_lists_by_indices_quota = None;
         let mut light_client_bootstrap_quota = None;
         let mut light_client_optimistic_update_quota = None;
         let mut light_client_finality_update_quota = None;
@@ -249,6 +260,9 @@ impl FromStr for RateLimiterConfig {
                 Protocol::ExecutionPayloadEnvelopesByRoot => {
                     execution_payload_envelopes_by_root_quota =
                         execution_payload_envelopes_by_root_quota.or(quota)
+                }
+                Protocol::InclusionListsByIndices => {
+                    inclusion_lists_by_indices_quota = inclusion_lists_by_indices_quota.or(quota)
                 }
                 Protocol::Ping => ping_quota = ping_quota.or(quota),
                 Protocol::MetaData => meta_data_quota = meta_data_quota.or(quota),
@@ -289,6 +303,8 @@ impl FromStr for RateLimiterConfig {
                 .unwrap_or(Self::DEFAULT_EXECUTION_PAYLOAD_ENVELOPES_BY_RANGE_QUOTA),
             execution_payload_envelopes_by_root_quota: execution_payload_envelopes_by_root_quota
                 .unwrap_or(Self::DEFAULT_EXECUTION_PAYLOAD_ENVELOPES_BY_ROOT_QUOTA),
+            inclusion_lists_by_indices_quota: inclusion_lists_by_indices_quota
+                .unwrap_or(Self::DEFAULT_INCLUSION_LISTS_BY_INDICES_QUOTA),
             light_client_bootstrap_quota: light_client_bootstrap_quota
                 .unwrap_or(Self::DEFAULT_LIGHT_CLIENT_BOOTSTRAP_QUOTA),
             light_client_optimistic_update_quota: light_client_optimistic_update_quota

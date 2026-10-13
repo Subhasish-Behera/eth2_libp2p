@@ -6,7 +6,8 @@ use anyhow::Result;
 use regex::bytes::Regex;
 use serde::Serialize;
 use ssz::{
-    ContiguousList, DynamicList, ReadError, Size, Ssz, SszRead, SszSize, SszWrite, WriteError,
+    BitVector, ContiguousList, DynamicList, ReadError, Size, Ssz, SszRead, SszSize, SszWrite,
+    WriteError,
 };
 use std::marker::PhantomData;
 use std::{ops::Deref, sync::Arc};
@@ -24,6 +25,7 @@ use types::{
     deneb::containers::BlobSidecar,
     fulu::{containers::DataColumnsByRootIdentifier, primitives::ColumnIndex},
     gloas::containers::SignedExecutionPayloadEnvelope,
+    heze::containers::SignedInclusionList,
     phase0::primitives::{Epoch, ForkDigest, H256, Slot},
     preset::Preset,
     traits::SignedBeaconBlock as _,
@@ -831,6 +833,20 @@ impl ExecutionPayloadEnvelopesByRootRequest {
         self.block_roots.len()
     }
 }
+
+#[derive(Clone, Debug, PartialEq, Eq, Ssz)]
+#[ssz(derive_hash = false)]
+pub struct InclusionListsByIndicesRequest<P: Preset> {
+    pub slot: Slot,
+    pub dependent_root: H256,
+    pub indices: BitVector<P::InclusionListCommitteeSize>,
+}
+
+impl<P: Preset> InclusionListsByIndicesRequest<P> {
+    pub fn max_requested(&self) -> usize {
+        self.indices.count_ones()
+    }
+}
 /// Request a number of beacon data columns from a peer.
 #[derive(Clone, Debug, PartialEq, Ssz)]
 pub struct LightClientUpdatesByRangeRequest {
@@ -891,6 +907,9 @@ pub enum RpcSuccessResponse<P: Preset> {
     /// A response to a get EXECUTION_PAYLOAD_ENVELOPES_BY_ROOT request.
     ExecutionPayloadEnvelopesByRoot(Arc<SignedExecutionPayloadEnvelope<P>>),
 
+    /// A response to a get INCLUSION_LISTS_BY_INDICES request.
+    InclusionListsByIndices(Arc<SignedInclusionList<P>>),
+
     /// A PONG response to a PING request.
     Pong(Ping),
 
@@ -925,6 +944,9 @@ pub enum ResponseTermination {
     /// Execution payload envelopes by root stream termination.
     ExecutionPayloadEnvelopesByRoot,
 
+    /// Inclusion lists by indices stream termination.
+    InclusionListsByIndices,
+
     /// Light client updates by range stream termination.
     LightClientUpdatesByRange,
 }
@@ -944,6 +966,7 @@ impl ResponseTermination {
             ResponseTermination::ExecutionPayloadEnvelopesByRoot => {
                 Protocol::ExecutionPayloadEnvelopesByRoot
             }
+            ResponseTermination::InclusionListsByIndices => Protocol::InclusionListsByIndices,
             ResponseTermination::LightClientUpdatesByRange => Protocol::LightClientUpdatesByRange,
         }
     }
@@ -1045,6 +1068,7 @@ impl<P: Preset> RpcSuccessResponse<P> {
             RpcSuccessResponse::ExecutionPayloadEnvelopesByRoot(_) => {
                 Protocol::ExecutionPayloadEnvelopesByRoot
             }
+            RpcSuccessResponse::InclusionListsByIndices(_) => Protocol::InclusionListsByIndices,
             RpcSuccessResponse::Pong(_) => Protocol::Ping,
             RpcSuccessResponse::MetaData(_) => Protocol::MetaData,
             RpcSuccessResponse::LightClientBootstrap(_) => Protocol::LightClientBootstrap,
@@ -1069,6 +1093,9 @@ impl<P: Preset> RpcSuccessResponse<P> {
             RpcSuccessResponse::ExecutionPayloadEnvelopesByRange(envelope)
             | RpcSuccessResponse::ExecutionPayloadEnvelopesByRoot(envelope) => {
                 Some(envelope.message.payload.slot_number)
+            }
+            RpcSuccessResponse::InclusionListsByIndices(inclusion_list) => {
+                Some(inclusion_list.message.slot)
             }
             RpcSuccessResponse::LightClientBootstrap(b) => Some(b.slot()),
             RpcSuccessResponse::LightClientOptimisticUpdate(update) => {
@@ -1144,6 +1171,13 @@ impl<P: Preset> std::fmt::Display for RpcSuccessResponse<P> {
                     f,
                     "ExecutionPayloadEnvelope: slot: {}",
                     envelope.message.payload.slot_number
+                )
+            }
+            RpcSuccessResponse::InclusionListsByIndices(inclusion_list) => {
+                write!(
+                    f,
+                    "InclusionList: slot: {}, validator_index: {}",
+                    inclusion_list.message.slot, inclusion_list.message.validator_index,
                 )
             }
             RpcSuccessResponse::Pong(ping) => write!(f, "Pong: {}", ping.data),
