@@ -50,6 +50,8 @@ pub struct GossipCache {
     payload_attestation_message: Option<Duration>,
     /// Timeout for proposer preferences.
     proposer_preferences: Option<Duration>,
+    /// Timeout for inclusion lists.
+    inclusion_list: Option<Duration>,
 }
 
 #[derive(Default)]
@@ -87,6 +89,8 @@ pub struct GossipCacheBuilder {
     payload_attestation_message: Option<Duration>,
     /// Timeout for proposer preferences.
     proposer_preferences: Option<Duration>,
+    /// Timeout for inclusion lists.
+    inclusion_list: Option<Duration>,
 }
 
 #[allow(dead_code)]
@@ -187,6 +191,12 @@ impl GossipCacheBuilder {
         self
     }
 
+    /// Timeout for inclusion lists.
+    pub fn inclusion_list_timeout(mut self, timeout: Duration) -> Self {
+        self.inclusion_list = Some(timeout);
+        self
+    }
+
     pub fn build(self) -> GossipCache {
         let GossipCacheBuilder {
             default_timeout,
@@ -206,6 +216,7 @@ impl GossipCacheBuilder {
             execution_payload,
             payload_attestation_message,
             proposer_preferences,
+            inclusion_list,
         } = self;
         GossipCache {
             expirations: DelayQueue::default(),
@@ -226,6 +237,7 @@ impl GossipCacheBuilder {
             execution_payload: execution_payload.or(default_timeout),
             payload_attestation_message: payload_attestation_message.or(default_timeout),
             proposer_preferences: proposer_preferences.or(default_timeout),
+            inclusion_list: inclusion_list.or(default_timeout),
         }
     }
 }
@@ -256,6 +268,7 @@ impl GossipCache {
             GossipKind::ExecutionPayload => self.execution_payload,
             GossipKind::PayloadAttestationMessage => self.payload_attestation_message,
             GossipKind::ProposerPreferences => self.proposer_preferences,
+            GossipKind::InclusionList => self.inclusion_list,
         };
         let Some(expire_timeout) = expire_timeout else {
             return;

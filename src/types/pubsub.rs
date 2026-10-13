@@ -39,7 +39,7 @@ use types::{
     },
     heze::containers::{
         SignedBeaconBlock as HezeSignedBeaconBlock,
-        SignedExecutionPayloadBid as HezeSignedExecutionPayloadBid,
+        SignedExecutionPayloadBid as HezeSignedExecutionPayloadBid, SignedInclusionList,
     },
     nonstandard::Phase,
     phase0::{
@@ -90,6 +90,8 @@ pub enum PubsubMessage<P: Preset> {
     PayloadAttestationMessage(Arc<PayloadAttestationMessage>),
     /// Gossipsub message providing notification of a proposer preference.
     ProposerPreferences(Arc<SignedProposerPreferences>),
+    /// Gossipsub message providing notification of a signed inclusion list.
+    InclusionList(Arc<SignedInclusionList<P>>),
 }
 
 // Implements the `DataTransform` trait of gossipsub to employ snappy compression
@@ -190,6 +192,7 @@ impl<P: Preset> PubsubMessage<P> {
             PubsubMessage::ExecutionPayload(_) => GossipKind::ExecutionPayload,
             PubsubMessage::PayloadAttestationMessage(_) => GossipKind::PayloadAttestationMessage,
             PubsubMessage::ProposerPreferences(_) => GossipKind::ProposerPreferences,
+            PubsubMessage::InclusionList(_) => GossipKind::InclusionList,
         }
     }
 
@@ -651,6 +654,28 @@ impl<P: Preset> PubsubMessage<P> {
                             )),
                         }
                     }
+                    GossipKind::InclusionList => {
+                        match fork_context.get_fork_from_context_bytes(gossip_topic.fork_digest) {
+                            Some(Phase::Heze) => SignedInclusionList::from_ssz_default(data)
+                                .map(Arc::new)
+                                .map(PubsubMessage::InclusionList)
+                                .map_err(|e| format!("{:?}", e)),
+                            Some(
+                                Phase::Phase0
+                                | Phase::Altair
+                                | Phase::Bellatrix
+                                | Phase::Capella
+                                | Phase::Deneb
+                                | Phase::Electra
+                                | Phase::Fulu
+                                | Phase::Gloas,
+                            )
+                            | None => Err(format!(
+                                "inclusion_list topic invalid for given fork digest {:?}",
+                                gossip_topic.fork_digest
+                            )),
+                        }
+                    }
                 }
             }
         }
@@ -681,6 +706,7 @@ impl<P: Preset> PubsubMessage<P> {
             PubsubMessage::ExecutionPayload(data) => data.to_ssz(),
             PubsubMessage::PayloadAttestationMessage(data) => data.to_ssz(),
             PubsubMessage::ProposerPreferences(data) => data.to_ssz(),
+            PubsubMessage::InclusionList(data) => data.to_ssz(),
         }
     }
 }
@@ -774,6 +800,13 @@ impl<P: Preset> std::fmt::Display for PubsubMessage<P> {
                     f,
                     "Proposer Preference: slot: {}, validator_index: {}",
                     data.message.proposal_slot, data.message.validator_index,
+                )
+            }
+            PubsubMessage::InclusionList(data) => {
+                write!(
+                    f,
+                    "Inclusion List: slot: {}, validator_index: {}",
+                    data.message.slot, data.message.validator_index,
                 )
             }
         }

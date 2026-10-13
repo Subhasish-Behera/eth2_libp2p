@@ -353,6 +353,7 @@ pub(crate) fn create_whitelist_filter(
         add(ExecutionPayload);
         add(PayloadAttestationMessage);
         add(ProposerPreferences);
+        add(InclusionList);
     }
     gossipsub::WhitelistSubscriptionFilter(possible_hashes)
 }

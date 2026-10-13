@@ -37,6 +37,7 @@ pub const EXECUTION_PAYLOAD_BID_TOPIC: &str = "execution_payload_bid";
 pub const EXECUTION_PAYLOAD_TOPIC: &str = "execution_payload";
 pub const PAYLOAD_ATTESTATION_MESSAGE_TOPIC: &str = "payload_attestation_message";
 pub const PROPOSER_PREFERENCES_TOPIC: &str = "proposer_preferences";
+pub const INCLUSION_LIST_TOPIC: &str = "inclusion_list";
 
 #[derive(Debug)]
 pub struct TopicConfig {
@@ -104,6 +105,10 @@ pub fn core_topics_to_subscribe(
         topics.push(GossipKind::ProposerPreferences);
     }
 
+    if current_phase >= Phase::Heze {
+        topics.push(GossipKind::InclusionList);
+    }
+
     topics
 }
 
@@ -131,7 +136,8 @@ pub fn is_fork_non_core_topic(topic: &GossipTopic, _phase: Phase) -> bool {
         | GossipKind::ExecutionPayloadBid
         | GossipKind::ExecutionPayload
         | GossipKind::PayloadAttestationMessage
-        | GossipKind::ProposerPreferences => false,
+        | GossipKind::ProposerPreferences
+        | GossipKind::InclusionList => false,
     }
 }
 
@@ -198,6 +204,8 @@ pub enum GossipKind {
     PayloadAttestationMessage,
     /// Topic for publishing proposer preferences.
     ProposerPreferences,
+    /// Topic for publishing signed inclusion lists.
+    InclusionList,
 }
 
 impl std::fmt::Display for GossipKind {
@@ -280,6 +288,7 @@ impl GossipTopic {
                 EXECUTION_PAYLOAD_TOPIC => GossipKind::ExecutionPayload,
                 PAYLOAD_ATTESTATION_MESSAGE_TOPIC => GossipKind::PayloadAttestationMessage,
                 PROPOSER_PREFERENCES_TOPIC => GossipKind::ProposerPreferences,
+                INCLUSION_LIST_TOPIC => GossipKind::InclusionList,
                 topic => match subnet_topic_index(topic) {
                     Some(kind) => kind,
                     None => return Err(format!("Unknown topic: {}", topic)),
@@ -348,6 +357,7 @@ impl std::fmt::Display for GossipTopic {
             GossipKind::ExecutionPayload => EXECUTION_PAYLOAD_TOPIC.into(),
             GossipKind::PayloadAttestationMessage => PAYLOAD_ATTESTATION_MESSAGE_TOPIC.into(),
             GossipKind::ProposerPreferences => PROPOSER_PREFERENCES_TOPIC.into(),
+            GossipKind::InclusionList => INCLUSION_LIST_TOPIC.into(),
         };
         write!(
             f,
@@ -422,6 +432,7 @@ mod tests {
                 ExecutionPayload,
                 PayloadAttestationMessage,
                 ProposerPreferences,
+                InclusionList,
             ]
             .iter()
             {
@@ -525,6 +536,7 @@ mod tests {
             PayloadAttestationMessage.as_ref()
         );
         assert_eq!("proposer_preferences", ProposerPreferences.as_ref());
+        assert_eq!("inclusion_list", InclusionList.as_ref());
     }
 
     fn get_chain_config() -> ChainConfig {
@@ -536,6 +548,7 @@ mod tests {
         config.electra_fork_epoch = 5;
         config.fulu_fork_epoch = 6;
         config.gloas_fork_epoch = 7;
+        config.heze_fork_epoch = 8;
         config
     }
 
@@ -600,6 +613,7 @@ mod tests {
             GossipKind::ExecutionPayload,
             GossipKind::PayloadAttestationMessage,
             GossipKind::ProposerPreferences,
+            GossipKind::InclusionList,
         ];
         for subnet in s {
             expected_topics.push(GossipKind::DataColumnSidecar(subnet));
