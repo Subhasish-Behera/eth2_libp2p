@@ -37,6 +37,10 @@ use types::{
         SignedExecutionPayloadBid as GloasSignedExecutionPayloadBid,
         SignedExecutionPayloadEnvelope, SignedProposerPreferences,
     },
+    heze::containers::{
+        SignedBeaconBlock as HezeSignedBeaconBlock,
+        SignedExecutionPayloadBid as HezeSignedExecutionPayloadBid,
+    },
     nonstandard::Phase,
     phase0::{
         containers::{
@@ -226,7 +230,7 @@ impl<P: Preset> PubsubMessage<P> {
                                         .map_err(|e| format!("{:?}", e))?,
                                 )
                             }
-                            Some(Phase::Gloas) => SignedAggregateAndProof::Gloas(
+                            Some(Phase::Gloas | Phase::Heze) => SignedAggregateAndProof::Gloas(
                                 GloasSignedAggregateAndProof::from_ssz_default(data)
                                     .map_err(|e| format!("{:?}", e))?,
                             ),
@@ -258,7 +262,8 @@ impl<P: Preset> PubsubMessage<P> {
                                     Arc::new(attestation),
                                 ))
                             }
-                            Some(Phase::Electra) | Some(Phase::Fulu) | Some(Phase::Gloas) => {
+                            Some(Phase::Electra) | Some(Phase::Fulu) | Some(Phase::Gloas)
+                            | Some(Phase::Heze) => {
                                 let single_attestation = SingleAttestation::from_ssz_default(data)
                                     .map_err(|e| format!("{:?}", e))?;
 
@@ -311,6 +316,10 @@ impl<P: Preset> PubsubMessage<P> {
                                 GloasSignedBeaconBlock::from_ssz_default(data)
                                     .map_err(|e| format!("{:?}", e))?,
                             ),
+                            Some(Phase::Heze) => SignedBeaconBlock::Heze(
+                                HezeSignedBeaconBlock::from_ssz_default(data)
+                                    .map_err(|e| format!("{:?}", e))?,
+                            ),
                             None => {
                                 return Err(format!(
                                     "Unknown gossipsub fork digest: {:?}",
@@ -322,7 +331,7 @@ impl<P: Preset> PubsubMessage<P> {
                     }
                     GossipKind::DataColumnSidecar(subnet_id) => {
                         match fork_context.get_fork_from_context_bytes(gossip_topic.fork_digest) {
-                            Some(Phase::Gloas) => {
+                            Some(Phase::Gloas | Phase::Heze) => {
                                 let col_sidecar = Arc::new(
                                     GloasDataColumnSidecar::from_ssz_default(data)
                                         .map_err(|e| format!("{:?}", e))?
@@ -400,7 +409,7 @@ impl<P: Preset> PubsubMessage<P> {
                                 ElectraAttesterSlashing::from_ssz_default(data)
                                     .map_err(|e| format!("{:?}", e))?,
                             ),
-                            Some(Phase::Gloas) => AttesterSlashing::Electra(
+                            Some(Phase::Gloas | Phase::Heze) => AttesterSlashing::Electra(
                                 ElectraAttesterSlashing::from_ssz_default(data)
                                     .map_err(|e| format!("{:?}", e))?,
                             ),
@@ -473,6 +482,10 @@ impl<P: Preset> PubsubMessage<P> {
                                 .map(LightClientFinalityUpdate::Gloas)
                                 .map_err(|e| format!("{:?}", e))?
                                 .into(),
+                            Some(Phase::Heze) => SszReadDefault::from_ssz_default(data)
+                                .map(LightClientFinalityUpdate::Gloas)
+                                .map_err(|e| format!("{:?}", e))?
+                                .into(),
                             None => {
                                 return Err(format!(
                                     "light_client_finality_update topic invalid for given fork digest {:?}",
@@ -515,6 +528,9 @@ impl<P: Preset> PubsubMessage<P> {
                             Some(Phase::Gloas) => SszReadDefault::from_ssz_default(data)
                                 .map(LightClientOptimisticUpdate::Gloas)
                                 .map_err(|e| format!("{:?}", e))?,
+                            Some(Phase::Heze) => SszReadDefault::from_ssz_default(data)
+                                .map(LightClientOptimisticUpdate::Gloas)
+                                .map_err(|e| format!("{:?}", e))?,
                             None => {
                                 return Err(format!(
                                     "light_client_optimistic_update topic invalid for given fork digest {:?}",
@@ -537,6 +553,14 @@ impl<P: Preset> PubsubMessage<P> {
                                         .map_err(|e| format!("{:?}", e))?;
                                 Ok(PubsubMessage::ExecutionPayloadBid(execution_payload_bid))
                             }
+                            Some(Phase::Heze) => {
+                                let execution_payload_bid =
+                                    HezeSignedExecutionPayloadBid::from_ssz_default(data)
+                                        .map(SignedExecutionPayloadBid::Heze)
+                                        .map(Arc::new)
+                                        .map_err(|e| format!("{:?}", e))?;
+                                Ok(PubsubMessage::ExecutionPayloadBid(execution_payload_bid))
+                            }
                             Some(
                                 Phase::Phase0
                                 | Phase::Altair
@@ -554,7 +578,7 @@ impl<P: Preset> PubsubMessage<P> {
                     }
                     GossipKind::ExecutionPayload => {
                         match fork_context.get_fork_from_context_bytes(gossip_topic.fork_digest) {
-                            Some(Phase::Gloas) => {
+                            Some(Phase::Gloas | Phase::Heze) => {
                                 let execution_payload_envelope = Arc::new(
                                     SignedExecutionPayloadEnvelope::from_ssz_default(data)
                                         .map_err(|e| format!("{:?}", e))?,
@@ -578,7 +602,7 @@ impl<P: Preset> PubsubMessage<P> {
                     }
                     GossipKind::PayloadAttestationMessage => {
                         match fork_context.get_fork_from_context_bytes(gossip_topic.fork_digest) {
-                            Some(Phase::Gloas) => {
+                            Some(Phase::Gloas | Phase::Heze) => {
                                 let payload_attestation = Arc::new(
                                     PayloadAttestationMessage::from_ssz_default(data)
                                         .map_err(|e| format!("{:?}", e))?,
@@ -604,7 +628,7 @@ impl<P: Preset> PubsubMessage<P> {
                     }
                     GossipKind::ProposerPreferences => {
                         match fork_context.get_fork_from_context_bytes(gossip_topic.fork_digest) {
-                            Some(Phase::Gloas) => {
+                            Some(Phase::Gloas | Phase::Heze) => {
                                 let signed_proposer_preferences =
                                     SignedProposerPreferences::from_ssz_default(data)
                                         .map_err(|e| format!("{:?}", e))?;

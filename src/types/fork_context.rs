@@ -211,6 +211,9 @@ mod tests {
 
     fn make_chain_config() -> Arc<Config> {
         let mut chain_config = Config::mainnet().rapid_upgrade();
+        // TODO(heze): start `test_next_fork_digest_zero_after_runtime_transition_to_last_fork`
+        // at Heze and drop this override.
+        chain_config.heze_fork_epoch = FAR_FUTURE_EPOCH;
         chain_config.blob_schedule = vec![
             BlobScheduleEntry::new(6, 12),
             BlobScheduleEntry::new(50, 24),
