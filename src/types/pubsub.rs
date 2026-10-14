@@ -19,6 +19,7 @@ use types::{
     combined::{
         Attestation, AttesterSlashing, DataColumnSidecar, LightClientFinalityUpdate,
         LightClientOptimisticUpdate, SignedAggregateAndProof, SignedBeaconBlock,
+        SignedExecutionPayloadBid,
     },
     deneb::containers::SignedBeaconBlock as DenebBeaconBlock,
     electra::containers::{
@@ -32,7 +33,8 @@ use types::{
     gloas::containers::{
         DataColumnSidecar as GloasDataColumnSidecar, PayloadAttestationMessage,
         SignedAggregateAndProof as GloasSignedAggregateAndProof,
-        SignedBeaconBlock as GloasSignedBeaconBlock, SignedExecutionPayloadBid,
+        SignedBeaconBlock as GloasSignedBeaconBlock,
+        SignedExecutionPayloadBid as GloasSignedExecutionPayloadBid,
         SignedExecutionPayloadEnvelope, SignedProposerPreferences,
     },
     nonstandard::Phase,
@@ -528,10 +530,11 @@ impl<P: Preset> PubsubMessage<P> {
                     GossipKind::ExecutionPayloadBid => {
                         match fork_context.get_fork_from_context_bytes(gossip_topic.fork_digest) {
                             Some(Phase::Gloas) => {
-                                let execution_payload_bid = Arc::new(
-                                    SignedExecutionPayloadBid::from_ssz_default(data)
-                                        .map_err(|e| format!("{:?}", e))?,
-                                );
+                                let execution_payload_bid =
+                                    GloasSignedExecutionPayloadBid::from_ssz_default(data)
+                                        .map(SignedExecutionPayloadBid::Gloas)
+                                        .map(Arc::new)
+                                        .map_err(|e| format!("{:?}", e))?;
                                 Ok(PubsubMessage::ExecutionPayloadBid(execution_payload_bid))
                             }
                             Some(
@@ -719,10 +722,13 @@ impl<P: Preset> std::fmt::Display for PubsubMessage<P> {
                 write!(f, "Light CLient Optimistic Update")
             }
             PubsubMessage::ExecutionPayloadBid(data) => {
+                let bid = data.message();
                 write!(
                     f,
                     "Execution Payload Bid: slot: {}, parent_block_root: {:?}, builder_index: {}",
-                    data.message.slot, data.message.parent_block_root, data.message.builder_index
+                    bid.slot(),
+                    bid.parent_block_root(),
+                    bid.builder_index()
                 )
             }
             PubsubMessage::ExecutionPayload(data) => {
